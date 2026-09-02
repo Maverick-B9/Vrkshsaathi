@@ -408,7 +408,7 @@ export const generateQRCode = onCall(
 //    AI is advisory only — never resolves or closes an incident.
 // ─────────────────────────────────────────────────────────────────
 export const analyzeIncidentPhoto = onObjectFinalized(
-  { region: "us-east1", bucket: process.env.STORAGE_BUCKET, secrets: ["GEMINI_API_KEY"] },
+  { region: "us-central1", bucket: process.env.STORAGE_BUCKET, secrets: ["GEMINI_API_KEY"] },
   async (event) => {
     const filePath = event.data.name;
     // Only process incident photos
