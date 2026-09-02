@@ -408,7 +408,7 @@ export const generateQRCode = onCall(
 //    AI is advisory only — never resolves or closes an incident.
 // ─────────────────────────────────────────────────────────────────
 export const analyzeIncidentPhoto = onObjectFinalized(
-  { region: "us-east1", bucket: process.env.STORAGE_BUCKET },
+  { region: "us-east1", bucket: process.env.STORAGE_BUCKET, secrets: ["GEMINI_API_KEY"] },
   async (event) => {
     const filePath = event.data.name;
     // Only process incident photos
@@ -492,7 +492,7 @@ Respond with a JSON object only, no markdown:
 //    Never auto-submits — citizen always confirms before submit.
 // ─────────────────────────────────────────────────────────────────
 export const parseVoiceNote = onCall(
-  { region: REGION },
+  { region: REGION, secrets: ["GEMINI_API_KEY"] },
   async (request) => {
     const { audioBase64, mimeType, languageCode } = request.data as {
       audioBase64: string;
@@ -590,6 +590,7 @@ export const generatePatternInsights = onSchedule(
     schedule:  "0 0 * * 0", // Every Sunday at midnight
     region:    REGION,
     timeZone:  "Asia/Kolkata",
+    secrets:   ["GEMINI_API_KEY"],
   },
   async () => {
     const geminiApiKey = process.env.GEMINI_API_KEY;
