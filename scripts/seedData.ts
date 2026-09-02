@@ -1,30 +1,33 @@
 // scripts/seedData.ts
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import * as admin from 'firebase-admin';
 
-if (process.env.USE_EMULATOR === 'true') {
-  console.log("Running against local emulators...");
-  process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8081';
-  process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
-  
-  initializeApp({
-    projectId: "tree-life-local", // Ensure this matches emulator config
-  });
-} else {
-  console.log("Running against PRODUCTION (or default creds)...");
-  initializeApp(); // Uses GOOGLE_APPLICATION_CREDENTIALS or default config
+if (!admin.apps.length) {
+  if (process.env.USE_EMULATOR === 'true') {
+    console.log("Running against local emulators...");
+    process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8081';
+    process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
+    
+    admin.initializeApp({
+      projectId: "tree-life-local", // Ensure this matches emulator config
+    });
+  } else {
+    console.log("Running against PRODUCTION (or default creds)...");
+    admin.initializeApp({ projectId: 'vrkshsaathi-cec57' });
+  }
 }
 
-const db = getFirestore();
-const auth = getAuth();
+const db = admin.firestore();
+const auth = admin.auth();
 
 // Helpers
 const deleteCollection = async (collectionPath: string) => {
   const collectionRef = db.collection(collectionPath);
   try {
-    await db.recursiveDelete(collectionRef);
-    console.log(`Recursively cleared ${collectionPath}`);
+    const docs = await collectionRef.listDocuments();
+    for (const doc of docs) {
+      await doc.delete();
+    }
+    console.log(`Cleared ${collectionPath}`);
   } catch (err) {
     console.error(`Failed to clear ${collectionPath}`, err);
   }
@@ -45,7 +48,7 @@ const createAuthUser = async (uid: string, phone: string, claims: any) => {
   console.log(`Created auth user: ${uid} with claims`, claims);
 };
 
-async function seed() {
+export async function seed() {
   console.log("Starting DB clear...");
   
   await deleteCollection('organizations');
@@ -244,7 +247,11 @@ async function seed() {
   });
 
   console.log("Seeding complete!");
-  process.exit(0);
 }
 
-seed().catch(console.error);
+if (require.main === module) {
+  seed().then(() => process.exit(0)).catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
