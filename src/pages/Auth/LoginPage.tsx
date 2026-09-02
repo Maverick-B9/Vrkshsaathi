@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { claims } = useAuth();
+  const verifierRef = useRef<RecaptchaVerifier | null>(null);
 
   const [method,   setMethod]   = useState<"email" | "phone">("email");
   const [email,    setEmail]    = useState("");
@@ -48,14 +49,23 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-        size: "invisible",
-      });
-      const result = await signInWithPhoneNumber(auth, phone, verifier);
+      if (!verifierRef.current) {
+        verifierRef.current = new RecaptchaVerifier(auth, "recaptcha-container", {
+          size: "invisible",
+        });
+      }
+      const result = await signInWithPhoneNumber(auth, phone, verifierRef.current);
       setConfirm(result);
       setStep("otp");
-    } catch {
-      setError("Couldn't send OTP. Check the number and try again.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Couldn't send OTP. Check the number and try again.");
+      
+      // If it fails, clear the verifier so we can try again
+      if (verifierRef.current) {
+        verifierRef.current.clear();
+        verifierRef.current = null;
+      }
     } finally {
       setLoading(false);
     }
@@ -175,7 +185,6 @@ export default function LoginPage() {
                   placeholder="+91 98765 43210"
                 />
               </div>
-              <div id="recaptcha-container" />
               {error && <p className="font-sans text-sm text-laterite-clay">{error}</p>}
               <button
                 type="submit"
@@ -214,6 +223,8 @@ export default function LoginPage() {
             </form>
           )}
         </div>
+
+        <div id="recaptcha-container" />
 
         <p className="font-sans text-xs text-center text-slate-bark">
           Citizens don't need to sign in —{" "}
