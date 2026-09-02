@@ -3,12 +3,18 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 
-process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8081';
-process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
-
-initializeApp({
-  projectId: "tree-life-local", // Ensure this matches emulator config
-});
+if (process.env.USE_EMULATOR === 'true') {
+  console.log("Running against local emulators...");
+  process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8081';
+  process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
+  
+  initializeApp({
+    projectId: "tree-life-local", // Ensure this matches emulator config
+  });
+} else {
+  console.log("Running against PRODUCTION (or default creds)...");
+  initializeApp(); // Uses GOOGLE_APPLICATION_CREDENTIALS or default config
+}
 
 const db = getFirestore();
 const auth = getAuth();

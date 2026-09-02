@@ -24,6 +24,7 @@ interface AuthState {
   isRegistrar:  boolean;
   isCustodian:  boolean;
   isWardAdmin:  boolean;
+  isUnassigned: boolean;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -33,6 +34,7 @@ const AuthContext = createContext<AuthState>({
   isRegistrar:  false,
   isCustodian:  false,
   isWardAdmin:  false,
+  isUnassigned: false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -48,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token  = await firebaseUser.getIdTokenResult(true);
         const c = token.claims as Partial<AuthClaims>;
         setClaims({
-          role:        c.role ?? "custodian",
+          role:        c.role as any, // might be undefined
           orgId:       c.orgId,
           custodianId: c.custodianId,
         });
@@ -66,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isRegistrar: claims?.role === "registrar",
     isCustodian: claims?.role === "custodian",
     isWardAdmin: claims?.role === "ward_admin",
+    isUnassigned: user !== null && !claims?.role,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

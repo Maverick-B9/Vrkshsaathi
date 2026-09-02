@@ -1,8 +1,11 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { auth } from "@/firebase/config";
 
 // Lazy-loaded pages for code splitting
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/firebase/config";
 
 const CitizenTreePage    = lazy(() => import("@/pages/CitizenTreePage/CitizenTreePage"));
 const TreeLifeRecord     = lazy(() => import("@/pages/TreeLifeRecord/TreeLifeRecord"));
@@ -30,6 +33,68 @@ function PageLoader() {
   );
 }
 
+function UnassignedRole() {
+  const { user } = useAuth();
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If the user has a phone number but no role, attempt to automatically link them to a custodian record
+    if (user?.phoneNumber) {
+      setVerifying(true);
+      setVerifyError(null);
+      const verify = httpsCallable(functions, "verifyCustodianPhone");
+      verify()
+        .then(() => {
+          // If successful, forcefully refresh the ID token so the UI picks up the new claims
+          return user.getIdToken(true);
+        })
+        .then(() => {
+          window.location.reload();
+        })
+        .catch((err) => {
+          console.error("Verification failed:", err);
+          // Only show error if it's not simply "not found"
+          if (err.code !== "not-found") {
+            setVerifyError("An error occurred while verifying your phone number.");
+          }
+          setVerifying(false);
+        });
+    }
+  }, [user]);
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-field-parchment flex items-center justify-center p-6">
+        <p className="text-slate-bark animate-pulse">Checking for pending assignments...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-field-parchment flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white rounded-tag shadow-tag p-8 text-center border border-field-parchment-dark">
+        <h1 className="text-2xl font-display text-ink-bark mb-4">
+          Account Not Fully Set Up
+        </h1>
+        <p className="text-slate-bark mb-6">
+          You are signed in with <strong>{user?.phoneNumber || user?.email}</strong>, but your account doesn't have a designated role (Registrar, Custodian, or Ward Admin).
+        </p>
+        {verifyError && <p className="text-laterite-clay mb-4 text-sm">{verifyError}</p>}
+        <p className="text-slate-bark text-sm bg-field-parchment p-4 rounded-tag-inner border border-field-parchment-dark">
+          Please contact your organization administrator to link your account to a role.
+        </p>
+        <button 
+          onClick={() => auth.signOut()}
+          className="mt-6 text-sm text-laterite-clay hover:underline"
+        >
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Guard: redirects to /login if unauthenticated */
 function RequireAuth({
   children,
@@ -52,13 +117,11 @@ export default function App() {
 
   // Default redirect for authenticated users
   function defaultDashboard() {
-    if (!user || !claims) return "/login";
-    switch (claims.role) {
-      case "registrar":  return "/registrar";
-      case "custodian":  return "/custodian";
-      case "ward_admin": return "/ward";
-      default:           return "/login";
-    }
+    if (!user) return "/login";
+    if (claims?.role === "registrar")  return "/registrar";
+    if (claims?.role === "custodian")  return "/custodian";
+    if (claims?.role === "ward_admin") return "/ward";
+    return "/unassigned";
   }
 
   return (
@@ -68,6 +131,7 @@ export default function App() {
         <Route path="/tree/:treeId"         element={<CitizenTreePage />} />
         <Route path="/tree/:treeId/history" element={<TreeLifeRecord />} />
         <Route path="/login"                element={<LoginPage />} />
+        <Route path="/unassigned"           element={<UnassignedRole />} />
 
         {/* ── Registrar ── */}
         <Route

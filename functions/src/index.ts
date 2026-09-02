@@ -140,6 +140,63 @@ export const setUserClaims = onCall(
 );
 
 // ─────────────────────────────────────────────────────────────────
+// 2b. verifyCustodianPhone — callable by a user to link their phone 
+//     number to an existing custodian record and get their claims.
+// ─────────────────────────────────────────────────────────────────
+export const verifyCustodianPhone = onCall(
+  { region: REGION },
+  async (request) => {
+    if (!request.auth || !request.auth.token.phone_number) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in with a phone number to verify."
+      );
+    }
+
+    const uid = request.auth.uid;
+    const phone = request.auth.token.phone_number;
+
+    // Check if they already have claims
+    if (request.auth.token.role) {
+      return { success: true, message: "Role already assigned." };
+    }
+
+    // Look for a matching custodian document
+    const snapshot = await db
+      .collection("custodians")
+      .where("phone", "==", phone)
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) {
+      throw new HttpsError(
+        "not-found",
+        "No custodian record found for this phone number."
+      );
+    }
+
+    const custodianDoc = snapshot.docs[0];
+    const data = custodianDoc.data();
+
+    // Set custom claims
+    const claims = {
+      role: "custodian",
+      orgId: data.orgId,
+      custodianId: custodianDoc.id,
+    };
+
+    await admin.auth().setCustomUserClaims(uid, claims);
+
+    // Link the authUid to the custodian record
+    await custodianDoc.ref.update({ authUid: uid });
+
+    logger.info(`✅ verifyCustodianPhone: Linked ${phone} to custodian ${custodianDoc.id}`);
+    
+    return { success: true, linked: true };
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────
 // 3. escalationScheduler — single elapsed-time scheduler
 //    Runs hourly. Handles BOTH escalation tiers in one pass,
 //    using stored `deadline` and `escalationHistory` length to
