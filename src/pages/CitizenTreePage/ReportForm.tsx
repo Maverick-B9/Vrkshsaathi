@@ -4,6 +4,7 @@ import { STRINGS } from "../../i18n/strings";
 import type { LanguageCode } from "../../i18n/strings";
 import { useSubmitIncident } from "./useSubmitIncident";
 import { Mic, Image as ImageIcon, X } from "lucide-react";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 interface ReportFormProps {
   treeId: string;
@@ -55,16 +56,38 @@ export function ReportForm({ treeId, lang, onSuccess }: ReportFormProps) {
         setAudioBlob(blob);
         stream.getTracks().forEach(t => t.stop());
         
-        // Mocking parseVoiceNote Cloud Function call for now
-        // In real app: this triggers the Gemini STT pipeline passing the active UI language
-        // const parsed = await callParseVoiceNote({ audioBlob: blob, langHint: lang });
-        console.log(`Simulating parseVoiceNote call with langHint: ${lang}`);
-        const parsed = { category: "WATER_NEEDED", notes: "They said the tree looks completely dry." };
-        
-        setParsedData(parsed);
-        setCategory(parsed.category);
-        setNotes(parsed.notes);
-        setShowConfirm(true); // Mandatory confirmation screen
+        // Convert to base64 and call the real parseVoiceNote Cloud Function
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = async () => {
+          try {
+            const base64WithPrefix = reader.result as string;
+            // Strip data URL prefix (e.g. "data:audio/webm;base64,")
+            const base64Audio = base64WithPrefix.split(",")[1];
+            const mimeType = mediaRecorder.mimeType || "audio/webm";
+
+            const functions = getFunctions(undefined, "asia-south1");
+            const parseVoiceNote = httpsCallable<
+              { audioBase64: string; mimeType: string; languageCode: string },
+              { transcript: string; category: string; severity: string; freeTextSummary: string }
+            >(functions, "parseVoiceNote");
+
+            const result = await parseVoiceNote({ audioBase64: base64Audio, mimeType, languageCode: lang });
+            const parsed = result.data;
+
+            setParsedData({ category: parsed.category, notes: parsed.freeTextSummary });
+            setCategory(parsed.category);
+            setNotes(parsed.freeTextSummary);
+            setShowConfirm(true); // Mandatory confirmation screen
+          } catch (err) {
+            console.error("parseVoiceNote failed:", err);
+            // Graceful degradation: show empty confirmation for manual entry
+            setParsedData({ category: "OTHER", notes: "" });
+            setCategory("OTHER");
+            setNotes("");
+            setShowConfirm(true);
+          }
+        };
       };
 
       mediaRecorder.start();

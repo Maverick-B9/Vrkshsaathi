@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { addDoc, collection, doc, updateDoc } from "firebase/firestore";
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../firebase/config";
 import { queueIncidentForSync } from "../../lib/offlineQueue";
 import { compressPhoto } from "../../lib/imageCompressor";
@@ -53,6 +53,10 @@ export function useSubmitIncident() {
         notes: payload.notes || null,
         status,
         reportedAt: new Date(reportedAt),
+        reportedVia: payload.audioBlob ? "VOICE" : payload.photoBlob ? "PHOTO" : "TAP",
+        hasEvidence: !!(payload.photoBlob || payload.audioBlob),
+        languageCode: "en", // default; overridden by voice flow with actual lang
+        escalationHistory: [],
       });
 
       // 3. Upload photo to Storage (Trigger will now find the doc)
@@ -61,13 +65,15 @@ export function useSubmitIncident() {
         await uploadBytes(photoRef, compressedPhoto);
       }
 
-      // 4. Upload audio to Storage
+      // 4. Upload audio to Storage and store voiceUrl on the incident
       if (payload.audioBlob) {
         // Dynamic extension
         const mime = payload.audioBlob.type;
         const ext = mime.includes("mp4") ? "mp4" : mime.includes("webm") ? "webm" : "m4a";
         const audioRef = ref(storage, `incidents/${docRef.id}/audio.${ext}`);
         await uploadBytes(audioRef, payload.audioBlob);
+        const voiceUrl = await getDownloadURL(audioRef);
+        await updateDoc(doc(db, "incidents", docRef.id), { voiceUrl });
       }
 
       // Simulate async Gemini Vision backend processing if an image is attached
