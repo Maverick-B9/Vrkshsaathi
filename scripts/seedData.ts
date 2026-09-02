@@ -1,23 +1,25 @@
 // scripts/seedData.ts
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
-if (!admin.apps.length) {
+if (!getApps().length) {
   if (process.env.USE_EMULATOR === 'true') {
     console.log("Running against local emulators...");
     process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8081';
     process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
     
-    admin.initializeApp({
+    initializeApp({
       projectId: "tree-life-local", // Ensure this matches emulator config
     });
   } else {
     console.log("Running against PRODUCTION (or default creds)...");
-    admin.initializeApp({ projectId: 'vrkshsaathi-cec57' });
+    initializeApp({ projectId: 'vrkshsaathi-cec57' });
   }
 }
 
-const db = admin.firestore();
-const auth = admin.auth();
+const db = getFirestore();
+const auth = getAuth();
 
 // Helpers
 const deleteCollection = async (collectionPath: string) => {

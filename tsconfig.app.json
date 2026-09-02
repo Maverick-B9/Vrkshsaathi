@@ -22,7 +22,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
 
-    /* Path aliases — ignoreDeprecations silences TS6 baseUrl warning */
+    /* Path aliases — ignoreDeprecations: "6.0" silences TS6 baseUrl deprecation warning */
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
