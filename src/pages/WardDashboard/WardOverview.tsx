@@ -1,0 +1,138 @@
+import { useEffect, useState } from "react";
+import { collection, query, getAggregateFromServer, count, sum, average, getDocs } from "firebase/firestore";
+import { db } from "../../firebase/config";
+
+// Mock data generation for the leaderboard until we build a scheduled aggregation function
+// In production, calculating these rates across thousands of records requires 
+// a nightly scheduled Cloud Function writing to an `org_stats` collection.
+interface OrgStat {
+  id: string;
+  name: string;
+  survivalRate: number; // Primary (e.g. 95.5)
+  stewardshipScore: number; // Secondary (e.g. 88.0)
+  totalPlanted: number; // Tertiary (e.g. 1250)
+}
+
+export function WardOverview() {
+  const [stats, setStats] = useState({
+    totalPlanted: 0,
+    activeIncidents: 0,
+    survivalRate: 0
+  });
+  const [leaderboard, setLeaderboard] = useState<OrgStat[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        // Fetch ward-level aggregates
+        // (For the MVP, we assume the Ward Admin can see everything in the collections)
+        const treesQ = collection(db, "trees");
+        const incQ = query(collection(db, "incidents")); // In a real app: where("status", "==", "PENDING")
+
+        // Using Firestore getAggregateFromServer for performant counts
+        const treeAgg = await getAggregateFromServer(treesQ, {
+          totalCount: count()
+        });
+        const incAgg = await getAggregateFromServer(incQ, {
+          totalCount: count()
+        });
+
+        // Mocking the survival rate and leaderboard for the UI
+        setStats({
+          totalPlanted: treeAgg.data().totalCount,
+          activeIncidents: incAgg.data().totalCount,
+          survivalRate: 92.4 // Mocked ward average
+        });
+
+        // Generate mock leaderboard enforcing the three-tier logic
+        const mockLeaderboard: OrgStat[] = [
+          { id: "org-3", name: "Green Earth NGO", survivalRate: 98.1, stewardshipScore: 95.0, totalPlanted: 450 },
+          { id: "org-1", name: "Rotary Club East", survivalRate: 94.5, stewardshipScore: 89.2, totalPlanted: 1200 },
+          { id: "org-2", name: "Lions Club", survivalRate: 88.0, stewardshipScore: 75.4, totalPlanted: 3200 }, // High count, low rank
+        ];
+
+        // Ensure strict sorting: Survival Rate (DESC) -> Stewardship (DESC) -> Count (DESC)
+        mockLeaderboard.sort((a, b) => {
+          if (b.survivalRate !== a.survivalRate) return b.survivalRate - a.survivalRate;
+          if (b.stewardshipScore !== a.stewardshipScore) return b.stewardshipScore - a.stewardshipScore;
+          return b.totalPlanted - a.totalPlanted;
+        });
+
+        setLeaderboard(mockLeaderboard);
+      } catch (err) {
+        console.error("Failed to fetch ward aggregates", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return <div className="p-12 text-center text-slate-bark animate-pulse">Loading Ward Telemetry...</div>;
+  }
+
+  return (
+    <div className="flex flex-col gap-8 animate-fade-up">
+      {/* Top Level Stats */}
+      <div>
+        <h2 className="font-display text-3xl text-ink-bark mb-4">Ward Telemetry</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-moss-canopy/10 border border-moss-canopy/30 rounded-tag p-6 flex flex-col justify-between">
+            <span className="font-sans text-sm font-medium text-moss-canopy-dark uppercase tracking-wide">Survival Rate</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="font-display text-4xl text-moss-canopy-dark">{stats.survivalRate}%</span>
+              <span className="font-sans text-sm text-moss-canopy">ward average</span>
+            </div>
+          </div>
+          <div className="bg-white border border-field-parchment-dark rounded-tag p-6 flex flex-col justify-between shadow-sm">
+            <span className="font-sans text-sm font-medium text-slate-bark uppercase tracking-wide">Total Planted</span>
+            <span className="mt-2 font-display text-4xl text-ink-bark">{stats.totalPlanted.toLocaleString()}</span>
+          </div>
+          <div className="bg-white border border-field-parchment-dark rounded-tag p-6 flex flex-col justify-between shadow-sm">
+            <span className="font-sans text-sm font-medium text-slate-bark uppercase tracking-wide">Active Escalations</span>
+            <span className="mt-2 font-display text-4xl text-turmeric-ochre">{stats.activeIncidents.toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Three-Tier Leaderboard */}
+      <div>
+        <div className="mb-4">
+          <h3 className="font-display text-2xl text-ink-bark">Organization Leaderboard</h3>
+          <p className="font-sans text-sm text-slate-bark mt-1">
+            Ranked strictly by Survival Rate and Stewardship to reward care over raw planting volume.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-tag shadow-sm border border-field-parchment-dark overflow-hidden">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-field-parchment border-b border-field-parchment-dark text-slate-bark font-sans text-xs uppercase tracking-wider">
+                <th className="p-4 font-medium w-16 text-center">Rank</th>
+                <th className="p-4 font-medium">Organization</th>
+                <th className="p-4 font-medium text-right text-moss-canopy-dark">Survival %</th>
+                <th className="p-4 font-medium text-right">Stewardship</th>
+                <th className="p-4 font-medium text-right text-slate-bark/70 text-[10px]">Total Planted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((org, index) => (
+                <tr key={org.id} className="border-b border-field-parchment-dark hover:bg-field-parchment/30 transition-colors">
+                  <td className="p-4 font-display text-lg text-ink-bark text-center">
+                    {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : index + 1}
+                  </td>
+                  <td className="p-4 font-sans text-base text-ink-bark font-medium">{org.name}</td>
+                  <td className="p-4 font-mono text-lg text-right text-moss-canopy-dark font-medium">{org.survivalRate}%</td>
+                  <td className="p-4 font-mono text-sm text-right text-ink-bark">{org.stewardshipScore}%</td>
+                  <td className="p-4 font-mono text-xs text-right text-slate-bark/70">{org.totalPlanted.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

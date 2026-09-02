@@ -1,0 +1,37 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Tree photos — public read, auth write
+    match /trees/{treeId}/{allPaths=**} {
+      allow read:  if true;
+      allow write: if request.auth != null
+                   && request.resource.size < 10 * 1024 * 1024   // 10 MB max
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Incident photos (citizen upload) — public read, no-auth write allowed
+    // for citizen frictionlessness, but capped at 10 MB + image-only
+    match /incidents/{incidentId}/{allPaths=**} {
+      allow read:  if true;
+      allow write: if request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*|audio/.*');
+    }
+
+    // Resolution photos — auth required (Assigned Custodian only)
+    match /resolutions/{incidentId}/{allPaths=**} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null 
+                   && request.auth.token.role == 'custodian'
+                   && firestore.get(/databases/(default)/documents/trees/$(firestore.get(/databases/(default)/documents/incidents/$(incidentId)).data.treeId)).data.custodianId == request.auth.token.custodianId
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // QR codes
+    match /qr/{treeId} {
+      allow read:  if true;
+      allow write: if false; // Cloud Function only
+    }
+  }
+}

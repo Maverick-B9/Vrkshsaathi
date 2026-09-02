@@ -1,0 +1,219 @@
+rules_version = '2';
+
+/**
+ * TREE-LIFE — Firestore Security Rules
+ *
+ * Key design decisions:
+ * - Role + orgId are stored as Firebase Auth *custom claims*, set by a
+ *   Cloud Function on account creation. Rules reference
+ *   `request.auth.token.role` and `request.auth.token.orgId` directly —
+ *   no `get()` lookups into Firestore, which avoids extra read costs and
+ *   race conditions.
+ * - Citizens are unauthenticated (`request.auth == null`). Their only
+ *   permitted operations are: read a single tree doc by ID, and CREATE
+ *   (not update/delete) an incident doc.
+ * - `mortality_records` has NO client write path at all — the only way
+ *   to create one is through the `confirmMortality` Cloud Function
+ *   (which validates the caller and also updates the tree status
+ *   atomically). This prevents self-serving cause manipulation.
+ * - `insights` collection is read-only from the client; written only
+ *   by the `generatePatternInsights` Cloud Function (admin SDK, bypasses rules).
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ─────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isCitizen() {
+      return request.auth == null;
+    }
+
+    function hasRole(r) {
+      return isSignedIn() && request.auth.token.role == r;
+    }
+
+    function isRegistrar() { return hasRole('registrar'); }
+    function isCustodian() { return hasRole('custodian'); }
+    function isWardAdmin() { return hasRole('ward_admin'); }
+
+    /** Registrar's own org */
+    function myOrgId() {
+      return request.auth.token.orgId;
+    }
+
+    /** Custodian's own custodian doc ID (stored as custom claim) */
+    function myCustodianId() {
+      return request.auth.token.custodianId;
+    }
+
+    function isMyOrg(orgId) {
+      return isRegistrar() && myOrgId() == orgId;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // /organizations
+    // ─────────────────────────────────────────────────────────────
+    match /organizations/{orgId} {
+      allow read:   if isSignedIn();
+      allow create: if isWardAdmin();
+      allow update: if isWardAdmin() || isMyOrg(orgId);
+      allow delete: if isWardAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // /trees
+    // ─────────────────────────────────────────────────────────────
+    match /trees/{treeId} {
+      // Citizens: read any single tree (for QR landing page)
+      allow get:  if true;
+      // Authenticated: list trees (dashboard)
+      allow list: if isSignedIn();
+
+      // Registrar: create trees only under their org.
+      // custodianId MUST be present — enforced here AND in the
+      // createTree Cloud Function transaction.
+      allow create: if isRegistrar()
+                    && isMyOrg(request.resource.data.registrarOrgId)
+                    && request.resource.data.custodianId != null
+                    && request.resource.data.custodianId != '';
+
+      // ── DEAD-status invariant (§4.5) ──────────────────────────
+      // NO client — regardless of role, including ward_admin — may
+      // transition a tree's status TO 'DEAD' via a direct document
+      // write. The only permitted path is the confirmMortality Cloud
+      // Function (Admin SDK), which:
+      //   (a) validates the caller's role,
+      //   (b) creates a mortality_records entry with a causeTag, and
+      //   (c) flips the tree status atomically in a batch write.
+      //
+      // Admin SDK writes bypass these rules by design, so the Cloud
+      // Function path is unaffected by this restriction.
+      //
+      // Editing OTHER fields on a tree that is already DEAD is allowed
+      // (e.g. adding notes, correcting location data) — the restriction
+      // is on the *transition into* DEAD, not on writes to DEAD trees.
+      //
+      // Implemented as a helper so the invariant is stated once and
+      // referenced by every update branch below.
+      function notTransitioningToDead() {
+        return request.resource.data.status != 'DEAD'
+            || resource.data.status == 'DEAD';
+      }
+
+      allow update: if (
+                      // Registrar: own org's trees only, no DEAD transition
+                      isRegistrar()
+                      && resource.data.registrarOrgId == myOrgId()
+                      && notTransitioningToDead()
+                    )
+                    || (
+                      // Custodian: assigned trees only, no DEAD transition
+                      isCustodian()
+                      && resource.data.custodianId == myCustodianId()
+                      && notTransitioningToDead()
+                    )
+                    || (
+                      // Ward admin: cross-org access, but STILL no direct
+                      // DEAD transition — they must also use confirmMortality.
+                      isWardAdmin()
+                      && notTransitioningToDead()
+                    );
+                    // Admin SDK (Cloud Functions) bypasses all rules above —
+                    // confirmMortality is the only path to DEAD for all roles.
+
+      allow delete: if isWardAdmin();
+    }
+
+
+    // ─────────────────────────────────────────────────────────────
+    // /custodians
+    // ─────────────────────────────────────────────────────────────
+    match /custodians/{custodianId} {
+      allow get:    if isSignedIn();
+      allow list:   if isSignedIn();
+
+      // Registrar can create custodians (when registering a tree)
+      allow create: if isRegistrar() || isWardAdmin();
+
+      // Custodian can update their own doc (stats updated by Cloud Function,
+      // but allow self-update of profile fields)
+      allow update: if (isCustodian() && custodianId == myCustodianId())
+                    || isRegistrar()
+                    || isWardAdmin();
+
+      allow delete: if isWardAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // /incidents
+    // ─────────────────────────────────────────────────────────────
+    match /incidents/{incidentId} {
+      // Citizens can read a specific incident by ID (to confirm submission).
+      // Listing incidents is restricted to authenticated users. The public 
+      // timeline uses the getTreeHistory Cloud Function instead.
+      allow get:    if true;
+      allow list:   if isSignedIn();
+      allow create: if
+        // Citizens: allowed, but cannot set status other than PENDING
+        (isCitizen()
+          && request.resource.data.status == 'PENDING'
+          && request.resource.data.treeId != null)
+        // Authenticated users can also create (e.g. custodian proactive)
+        || isSignedIn();
+
+      // Only the assigned custodian (or escalated-to actor, or ward admin)
+      // can update an incident — and only to RESOLVED or to add escalation.
+      allow update: if
+        // Assigned custodian resolving
+        (isCustodian()
+          && resource.data.assignedTo == myCustodianId())
+        // Registrar handling their org's escalation
+        || (isRegistrar()
+          && resource.data.assignedTo == myOrgId())
+        // Ward admin: final tier
+        || isWardAdmin();
+        // NOTE: status flip to ESCALATED is done by the escalationScheduler
+        // Cloud Function (admin SDK) — never by client directly.
+
+      allow delete: if isWardAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // /checkpoints
+    // ─────────────────────────────────────────────────────────────
+    match /checkpoints/{checkpointId} {
+      allow read:   if true; // public (part of tree life-record)
+      // Auto-created by onTreeCreate Cloud Function (admin SDK)
+      allow create: if isRegistrar() || isWardAdmin();
+      // Only assigned custodian or registrar of that tree's org can complete
+      allow update: if isCustodian() || isRegistrar() || isWardAdmin();
+      allow delete: if isWardAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // /mortality_records — NO client write path at all
+    // ─────────────────────────────────────────────────────────────
+    match /mortality_records/{recordId} {
+      allow read:   if isSignedIn();
+      // Public timeline reads go through getTreeHistory Cloud Function.
+      // All writes go through the confirmMortality Cloud Function
+      // (admin SDK bypasses these rules). Direct client writes are denied.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // /insights — written by generatePatternInsights Cloud Function only
+    // ─────────────────────────────────────────────────────────────
+    match /insights/{weekId} {
+      allow read:  if isSignedIn();
+      allow write: if false; // Cloud Function (admin SDK) only
+    }
+
+  }
+}

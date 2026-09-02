@@ -1,0 +1,117 @@
+/* ─── Google Fonts: Display + Body + Mono ───────────────────────── */
+/* Must come before @tailwind directives per PostCSS spec */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Indic script fonts are loaded dynamically via JS ─────────── */
+/* See src/i18n/fonts.ts — only the active language's font is fetched */
+
+/* ─── CSS custom properties — design tokens ─────────────────────── */
+:root {
+  --color-ink-bark:         #23281B;
+  --color-field-parchment:  #EDE9DA;
+  --color-moss-canopy:      #4B6B3A;
+  --color-laterite-clay:    #A6472B;
+  --color-turmeric-ochre:   #C99A2E;
+  --color-slate-bark:       #6B6558;
+
+  /* Status aliases used in JS for inline SVG / canvas contexts */
+  --status-healthy:         var(--color-moss-canopy);
+  --status-attention:       var(--color-turmeric-ochre);
+  --status-dead:            var(--color-laterite-clay);
+  --status-replaced:        var(--color-slate-bark);
+}
+
+/* ─── Base reset ────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  background-color: var(--color-field-parchment);
+  color: var(--color-ink-bark);
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  /* Slightly warmer antialiasing — suits Plex Sans on parchment BG */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Indic body override: applied by <html lang="kn"> etc. ─────── */
+:lang(kn), :lang(hi), :lang(mr), :lang(ta), :lang(te),
+:lang(bn), :lang(gu), :lang(ml), :lang(pa), :lang(or), :lang(ur), :lang(as) {
+  line-height: 1.8;
+  letter-spacing: 0;
+}
+
+/* ─── Focus ring — accessible, non-color-only ───────────────────── */
+:focus-visible {
+  outline: 3px solid var(--color-moss-canopy);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ─── Reduced motion ────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Trunk-line SVG animation ───────────────────────────────────── */
+.trunk-line {
+  stroke-dasharray: 100%;
+  stroke-dashoffset: 100%;
+  animation: trunkDraw 700ms ease-out forwards;
+}
+
+/* ─── Tag card punched-hole visual ──────────────────────────────── */
+.tag-hole {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-field-parchment);
+  border: 2px solid var(--color-slate-bark);
+  flex-shrink: 0;
+}
+
+/* ─── Utility: full-bleed tap row ────────────────────────────────── */
+.tap-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 16px;
+  gap: 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--color-ink-bark);
+  transition: background 120ms ease;
+}
+.tap-row:active {
+  background: rgba(35, 40, 27, 0.06);
+}
+
+/* ─── Scrollbar — subtle, matches parchment BG ───────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-slate-bark);
+  border-radius: 3px;
+  opacity: 0.5;
+}
