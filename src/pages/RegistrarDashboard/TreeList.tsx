@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
 import type { TreeStatus } from "../../types/firestore";
@@ -33,6 +33,17 @@ export function TreeList() {
     fetchTrees();
   }, [orgId, statusFilter]);
 
+  const handleDelete = async (treeId: string) => {
+    if (!window.confirm(`Are you sure you want to delete tree ${treeId}?`)) return;
+    try {
+      await deleteDoc(doc(db, "trees", treeId));
+      setTrees(trees.filter(t => t.id !== treeId));
+    } catch (err) {
+      console.error("Failed to delete tree", err);
+      alert("Failed to delete tree. Ensure you have the right permissions.");
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 animate-fade-up">
       <div className="flex justify-between items-end">
@@ -64,6 +75,7 @@ export function TreeList() {
                 <th className="p-4 font-medium">Ward</th>
                 <th className="p-4 font-medium">Custodian</th>
                 <th className="p-4 font-medium">Status</th>
+                <th className="p-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -84,6 +96,14 @@ export function TreeList() {
                   <td className="p-4 font-sans text-sm text-ink-bark">{tree.custodianId}</td>
                   <td className="p-4">
                     <StatusBadge status={tree.status as TreeStatus} />
+                  </td>
+                  <td className="p-4 text-right">
+                    <button 
+                      onClick={() => handleDelete(tree.id)}
+                      className="text-laterite-clay hover:text-laterite-clay-light text-sm font-sans font-medium px-2 py-1"
+                    >
+                      Delete
+                    </button>
                   </td>
                 </tr>
               ))}

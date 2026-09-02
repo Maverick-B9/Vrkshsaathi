@@ -16,7 +16,14 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
   
   // Form Data
   const [species, setSpecies] = useState("");
+  const [road, setRoad] = useState("");
+  const [landmark, setLandmark] = useState("");
   const [ward, setWard] = useState("");
+  const [cityOrVillage, setCityOrVillage] = useState("");
+  const [district, setDistrict] = useState("");
+  const [state, setState] = useState("");
+  const [country, setCountry] = useState("India");
+  const [pincode, setPincode] = useState("");
   
   // Viability Data
   const [speciesFit, setSpeciesFit] = useState("medium"); // low, medium, high
@@ -85,7 +92,14 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
   const submitForm = async () => {
     const res = await registerTree({
       species,
+      road,
+      landmark,
       ward,
+      cityOrVillage,
+      district,
+      state,
+      country,
+      pincode,
       custodianId,
       registrarOrgId: orgId,
       viabilityScore: score,
@@ -116,12 +130,56 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
             value={species}
             onChange={(e) => setSpecies(e.target.value)}
           />
-          <Input 
-            label="Ward / Zone" 
-            placeholder="e.g. Ward 14" 
-            value={ward}
-            onChange={(e) => setWard(e.target.value)}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input 
+              label="Road / Street" 
+              placeholder="e.g. MG Road" 
+              value={road}
+              onChange={(e) => setRoad(e.target.value)}
+            />
+            <Input 
+              label="Landmark" 
+              placeholder="e.g. Near Post Office" 
+              value={landmark}
+              onChange={(e) => setLandmark(e.target.value)}
+            />
+            <Input 
+              label="Ward / Zone" 
+              placeholder="e.g. Ward 14" 
+              value={ward}
+              onChange={(e) => setWard(e.target.value)}
+            />
+            <Input 
+              label="City / Village" 
+              placeholder="e.g. Mysore" 
+              value={cityOrVillage}
+              onChange={(e) => setCityOrVillage(e.target.value)}
+            />
+            <Input 
+              label="District" 
+              placeholder="e.g. Mysore District" 
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+            />
+            <Input 
+              label="State" 
+              placeholder="e.g. Karnataka" 
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+            />
+            <Input 
+              label="Country" 
+              placeholder="e.g. India" 
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+            />
+            <Input 
+              label="Pincode" 
+              placeholder="e.g. 570001" 
+              value={pincode}
+              onChange={(e) => setPincode(e.target.value)}
+            />
+          </div>
           <div className="mt-4 flex justify-end">
             <Button onClick={handleNext}>Next: Viability Check</Button>
           </div>

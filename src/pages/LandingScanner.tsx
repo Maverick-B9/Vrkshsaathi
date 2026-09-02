@@ -1,11 +1,13 @@
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Scanner } from "@yudiel/react-qr-scanner";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import jsQR from "jsqr";
 
 export default function LandingScanner() {
   const navigate = useNavigate();
   const [hasScanned, setHasScanned] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleScan = (detectedCodes: any) => {
     if (detectedCodes && detectedCodes.length > 0 && !hasScanned) {
@@ -20,6 +22,38 @@ export default function LandingScanner() {
         // Reset if it's an invalid scan after a delay
         setTimeout(() => setHasScanned(false), 2000);
       }
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          context.drawImage(img, 0, 0, img.width, img.height);
+          const imageData = context.getImageData(0, 0, img.width, img.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            handleScan([{ rawValue: code.data }]);
+          } else {
+            alert("No QR code found in the image. Please try another one.");
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -123,8 +157,25 @@ export default function LandingScanner() {
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, delay: 0.4 }}
-        className="relative z-10 w-full p-8 pb-10 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col items-center gap-5"
+        className="relative z-10 w-full p-8 pb-10 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col items-center gap-5 pointer-events-auto"
       >
+        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xs mb-4">
+          <input 
+            type="file" 
+            accept="image/*" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            className="hidden" 
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full bg-white/10 border border-white/20 hover:bg-white/20 text-white font-sans font-medium text-sm py-3 px-6 rounded-full flex items-center justify-center transition-all backdrop-blur-md"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+            Upload from Gallery
+          </button>
+        </div>
+
         <p className="font-sans text-sm text-white/80 drop-shadow-md">Are you a Custodian or Admin?</p>
         <Link 
           to="/login"

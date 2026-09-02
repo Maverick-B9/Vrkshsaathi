@@ -130,7 +130,7 @@ service cloud.firestore {
                     // Admin SDK (Cloud Functions) bypasses all rules above —
                     // confirmMortality is the only path to DEAD for all roles.
 
-      allow delete: if isWardAdmin() || isSuperAdmin();
+      allow delete: if isWardAdmin() || isSuperAdmin() || (isRegistrar() && resource.data.registrarOrgId == myOrgId());
     }
 
 

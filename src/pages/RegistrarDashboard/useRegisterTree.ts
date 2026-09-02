@@ -5,7 +5,14 @@ import type { TreeStatus } from "../../types/firestore";
 
 interface RegisterTreePayload {
   species: string;
+  road?: string;
+  landmark: string;
   ward: string;
+  cityOrVillage?: string;
+  district?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
   location?: { lat: number; lng: number };
   custodianId: string;
   registrarOrgId: string;
@@ -31,8 +38,18 @@ export function useRegisterTree() {
     try {
       const docRef = await addDoc(collection(db, "trees"), {
         species: payload.species,
-        ward: payload.ward,
-        location: payload.location || null,
+        location: {
+          lat: payload.location?.lat || 0,
+          lng: payload.location?.lng || 0,
+          road: payload.road || "",
+          landmark: payload.landmark || "",
+          ward: payload.ward || "",
+          cityOrVillage: payload.cityOrVillage || "",
+          district: payload.district || "",
+          state: payload.state || "",
+          country: payload.country || "India",
+          pincode: payload.pincode || ""
+        },
         custodianId: payload.custodianId,
         registrarOrgId: payload.registrarOrgId,
         viabilityScore: payload.viabilityScore,

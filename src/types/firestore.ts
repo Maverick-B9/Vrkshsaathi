@@ -80,8 +80,14 @@ export interface Tree {
   location: {
     lat: number;
     lng: number;
+    road?: string;
     landmark: string;
     ward: string;
+    cityOrVillage?: string;
+    district?: string;
+    state?: string;
+    country?: string;
+    pincode?: string;
   };
   registrarOrgId: string; // ref to /organizations
   custodianId: string;    // REQUIRED — no tree without a custodian

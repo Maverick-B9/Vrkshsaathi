@@ -37,6 +37,7 @@ describe("useRegisterTree", () => {
       return await result.current.registerTree({
         species: "Neem",
         ward: "Ward 14",
+        landmark: "",
         custodianId: null as any, // testing the invariant
         registrarOrgId: "org-1",
         viabilityScore: 85,
@@ -52,6 +53,7 @@ describe("useRegisterTree", () => {
       return await result.current.registerTree({
         species: "Neem",
         ward: "Ward 14",
+        landmark: "",
         custodianId: "",
         registrarOrgId: "org-1",
         viabilityScore: 85,
@@ -67,6 +69,7 @@ describe("useRegisterTree", () => {
       return await result.current.registerTree({
         species: "Neem",
         ward: "Ward 14",
+        landmark: "",
         custodianId: "custodian-abc",
         registrarOrgId: "org-1",
         viabilityScore: 85,
