@@ -27,7 +27,6 @@ export default function LandingScanner() {
             container: { height: "100%", width: "100%" },
             video: { objectFit: "cover" }
           }}
-          components={{ tracker: false, audio: false, onOff: true, finder: false }}
         />
         {/* Fallback dark overlay just in case camera fails to load instantly */}
         <div className="absolute inset-0 bg-black/40 pointer-events-none" />
