@@ -2,7 +2,7 @@ import { Outlet, Navigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function CustodianLayout() {
-  const { user, claims, loading, signOut } = useAuth();
+  const { user, claims, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
