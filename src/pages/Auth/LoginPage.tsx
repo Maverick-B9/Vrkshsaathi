@@ -6,7 +6,7 @@ import {
   type ConfirmationResult,
 } from "firebase/auth";
 import { auth } from "@/firebase/config";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
@@ -87,7 +87,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-field-parchment flex items-center justify-center p-6">
+    <div className="min-h-[100dvh] bg-field-parchment flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
         {/* Living Tag header */}
         <div className="bg-white rounded-tag shadow-tag p-6 mb-4">
@@ -225,9 +225,9 @@ export default function LoginPage() {
 
         <p className="font-sans text-xs text-center text-slate-bark">
           Citizens don't need to sign in —{" "}
-          <a href="/tree/MYS-W14-0247" className="text-moss-canopy underline">
+          <Link to="/" className="text-moss-canopy underline font-medium hover:text-moss-canopy-dark">
             scan a QR code to report
-          </a>
+          </Link>
         </p>
       </div>
     </div>
