@@ -91,13 +91,10 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Living Tag header */}
         <div className="bg-white rounded-tag shadow-tag p-6 mb-4">
-          <div className="flex items-center gap-2 mb-6">
-            {/* Punch-hole motif */}
-            <div className="tag-hole" />
-            <svg width="20" height="12" viewBox="0 0 20 12" fill="none">
-              <path d="M7 6 Q13 0 20 4" stroke="#6B6558" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-            </svg>
-            <span className="font-display text-lg tracking-tag-id text-moss-canopy font-semibold uppercase">
+          <div className="flex items-center gap-3 mb-6">
+            {/* Logo */}
+            <img src="/logo.jpg" alt="VrkshSaathi" className="w-10 h-10 object-contain rounded-full border border-moss-canopy shadow-sm" />
+            <span className="font-display text-xl tracking-[0.05em] text-moss-canopy font-semibold uppercase">
               VrkshSaathi
             </span>
           </div>
