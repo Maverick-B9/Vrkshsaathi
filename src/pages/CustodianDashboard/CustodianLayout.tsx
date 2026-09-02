@@ -30,7 +30,7 @@ export function CustodianLayout() {
       {/* Mobile Header */}
       <header className="md:hidden bg-white border-b border-field-parchment-dark p-4 flex justify-between items-center z-10 sticky top-0">
         <div>
-          <h1 className="font-display text-lg text-ink-bark tracking-wide uppercase">TREE-LIFE</h1>
+          <h1 className="font-display text-lg text-ink-bark tracking-wide uppercase">VrkshSaathi</h1>
           <p className="font-sans text-xs text-slate-bark">Custodian Area</p>
         </div>
         <button onClick={() => signOut(auth)} className="p-2 text-slate-bark hover:bg-field-parchment rounded-full" aria-label="Sign Out">
@@ -41,7 +41,7 @@ export function CustodianLayout() {
       {/* Sidebar Navigation */}
       <aside className="w-full md:w-64 bg-white border-t md:border-t-0 md:border-r border-field-parchment-dark flex flex-row md:flex-col fixed md:relative bottom-0 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] md:shadow-none">
         <div className="p-6 border-b border-field-parchment-dark hidden md:block">
-          <h1 className="font-display text-2xl text-ink-bark uppercase tracking-wide">TREE-LIFE</h1>
+          <h1 className="font-display text-2xl text-ink-bark uppercase tracking-wide">VrkshSaathi</h1>
           <p className="font-sans text-sm text-slate-bark mt-1">Custodian Area</p>
         </div>
         

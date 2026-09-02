@@ -110,7 +110,7 @@ export const setUserClaims = onCall(
   async (request) => {
     // Only a ward_admin (or service account) can set claims for others
     const callerClaims = request.auth?.token;
-    if (!callerClaims || callerClaims.role !== "ward_admin") {
+    if (!callerClaims || (callerClaims.role !== "ward_admin" && callerClaims.role !== "super_admin")) {
       // Self-registration: allow registrar/custodian claim to be set
       // only if the user has no role yet (first-time setup)
       if (callerClaims?.role) {
@@ -120,7 +120,7 @@ export const setUserClaims = onCall(
 
     const { uid, role, orgId, custodianId } = request.data as {
       uid: string;
-      role: "registrar" | "custodian" | "ward_admin";
+      role: "registrar" | "custodian" | "ward_admin" | "super_admin";
       orgId?: string;
       custodianId?: string;
     };

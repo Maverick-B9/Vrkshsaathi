@@ -101,6 +101,7 @@ interface LivingTagProps {
   className?:      string;
   /** Disable the settle animation (e.g. for list renders with many items) */
   noAnimate?:      boolean;
+  qrCodeUrl?:      string;
 }
 
 // ─── Component ───────────────────────────────────────────────────
@@ -115,6 +116,7 @@ export function LivingTag({
   onClick,
   className = "",
   noAnimate = false,
+  qrCodeUrl,
 }: LivingTagProps) {
   const cfg = SIZE_CONFIG[size];
   const prefersReducedMotion = useReducedMotion();
@@ -142,19 +144,29 @@ export function LivingTag({
       onKeyDown={onClick ? (e) => e.key === "Enter" && onClick() : undefined}
     >
       {/* ── Top row: punch-hole motif + tree ID ── */}
-      <div className="flex items-center gap-2">
-        <PunchHoleMotif
-          size={cfg.motifSize}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <PunchHoleMotif
+            size={cfg.motifSize}
           bgColor="#FFFFFF"
           rimColor="#6B6558"
           wireColor="#6B6558"
         />
-        <span
-          className={`${cfg.idFont} text-ink-bark flex-1 min-w-0 truncate`}
-          aria-label={`Tree ID: ${treeId}`}
-        >
-          {treeId}
-        </span>
+          <span
+            className={`${cfg.idFont} text-ink-bark flex-1 min-w-0 truncate`}
+            aria-label={`Tree ID: ${treeId}`}
+          >
+            {treeId}
+          </span>
+        </div>
+        
+        {qrCodeUrl && (
+          <div className="shrink-0 ml-2">
+            <a href={qrCodeUrl} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+              <img src={qrCodeUrl} alt="QR Code" className="w-10 h-10 border border-field-parchment-dark rounded-sm bg-white" />
+            </a>
+          </div>
+        )}
       </div>
 
       {/* ── Species + ward ── */}

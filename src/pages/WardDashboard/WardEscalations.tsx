@@ -13,8 +13,7 @@ export function WardEscalations() {
         // Query incidents that have reached the final ESCALATED status
         const q = query(
           collection(db, "incidents"),
-          where("status", "==", "ESCALATED")
-          // In production, we'd also filter by the specific escalation tier if needed
+          where("assignedTo", "==", "WARD_ADMIN")
         );
         
         const snap = await getDocs(q);

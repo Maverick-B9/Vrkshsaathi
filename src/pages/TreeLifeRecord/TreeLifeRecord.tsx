@@ -40,6 +40,11 @@ export default function TreeLifeRecord() {
             <p className="font-sans text-sm text-slate-bark mt-1 tracking-wide">
               ID: {treeId} • {treeInfo.ward}
             </p>
+            {treeInfo.qrCodeUrl && (
+              <a href={treeInfo.qrCodeUrl} target="_blank" rel="noreferrer" className="mt-2 block">
+                <img src={treeInfo.qrCodeUrl} alt="QR Code" className="w-12 h-12 border border-field-parchment-dark rounded-sm bg-white" />
+              </a>
+            )}
           </div>
           <Link to={`/tree/${treeId}`}>
             <Button variant="secondary" size="sm">View Tree</Button>

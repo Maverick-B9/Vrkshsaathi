@@ -2,12 +2,9 @@ import { useState } from "react";
 import { Button, Input, Select, Toast, ToastContainer } from "../../components/ui";
 import { useRegisterTree } from "./useRegisterTree";
 
-// Placeholder for qrcode.react
-const QRCode = ({ value, size }: { value: string; size: number }) => (
-  <div className="bg-field-parchment-dark flex items-center justify-center font-mono text-xs text-slate-bark text-center p-2" style={{ width: size, height: size }}>
-    [QR Code for:<br/>{value}]
-  </div>
-);
+import { QRCodeSVG } from 'qrcode.react';
+
+// Use QRCodeSVG directly instead of placeholder
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -228,8 +225,18 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
           </div>
 
           <div className="p-4 bg-white border border-field-parchment-dark shadow-sm rounded-tag-inner">
-            {/* Visual rendering only. The generateQRCode Cloud Function handles storage. */}
-            <QRCode value={`https://tree-life.app/tree/${createdTreeId}`} size={200} />
+            <QRCodeSVG 
+              value={`https://tree-life.app/tree/${createdTreeId}`} 
+              size={200}
+              imageSettings={{
+                src: "/logo.jpg",
+                x: undefined,
+                y: undefined,
+                height: 48,
+                width: 48,
+                excavate: true,
+              }}
+            />
           </div>
           <p className="font-sans text-xs text-slate-bark max-w-xs text-center">
             This QR code is for immediate printing. A permanent copy will be generated in the background.

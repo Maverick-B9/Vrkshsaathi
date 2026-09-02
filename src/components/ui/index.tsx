@@ -1,5 +1,5 @@
 /**
- * TREE-LIFE UI Primitives
+ * VrkshSaathi UI Primitives
  * Button, Input, Select, Chip, Modal, Toast, Spinner, EmptyState
  *
  * All styled against the §7.1 design tokens. No Tailwind defaults.
@@ -404,12 +404,8 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       {icon && (
         <span className="text-5xl" aria-hidden="true">{icon}</span>
       )}
-      {/* Trunk stub — subtle, on-brand */}
-      <svg width="3" height="32" viewBox="0 0 3 32" aria-hidden="true">
-        <line x1="1.5" y1="0" x2="1.5" y2="32"
-          stroke="#4B6B3A" strokeWidth="3" strokeLinecap="round" opacity="0.3"
-        />
-      </svg>
+      {/* Logo watermark - subtle, on-brand */}
+      <img src="/logo.jpg" alt="VrkshSaathi" className="w-12 h-12 object-contain opacity-30 grayscale" aria-hidden="true" />
       <div className="flex flex-col gap-2">
         <p className="font-display text-lg text-ink-bark">{title}</p>
         {description && (

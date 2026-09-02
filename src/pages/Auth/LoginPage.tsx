@@ -98,7 +98,7 @@ export default function LoginPage() {
               <path d="M7 6 Q13 0 20 4" stroke="#6B6558" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
             </svg>
             <span className="font-display text-lg tracking-tag-id text-moss-canopy font-semibold uppercase">
-              TREE-LIFE
+              VrkshSaathi
             </span>
           </div>
 

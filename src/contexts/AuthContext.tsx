@@ -24,6 +24,7 @@ interface AuthState {
   isRegistrar:  boolean;
   isCustodian:  boolean;
   isWardAdmin:  boolean;
+  isSuperAdmin: boolean;
   isUnassigned: boolean;
 }
 
@@ -34,6 +35,7 @@ const AuthContext = createContext<AuthState>({
   isRegistrar:  false,
   isCustodian:  false,
   isWardAdmin:  false,
+  isSuperAdmin: false,
   isUnassigned: false,
 });
 
@@ -68,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isRegistrar: claims?.role === "registrar",
     isCustodian: claims?.role === "custodian",
     isWardAdmin: claims?.role === "ward_admin",
+    isSuperAdmin: claims?.role === "super_admin",
     isUnassigned: user !== null && !claims?.role,
   };
 

@@ -13,20 +13,19 @@ const LoginPage          = lazy(() => import("@/pages/Auth/LoginPage"));
 const RegistrarDashboard = lazy(() => import("@/pages/RegistrarDashboard/RegistrarDashboard"));
 const CustodianDashboard = lazy(() => import("@/pages/CustodianDashboard/CustodianDashboard"));
 const WardDashboard      = lazy(() => import("@/pages/WardDashboard/WardDashboard"));
+const SuperAdminDashboard= lazy(() => import("@/pages/SuperAdminDashboard/SuperAdminDashboard"));
+const LandingScanner     = lazy(() => import("@/pages/LandingScanner"));
 
 function PageLoader() {
   return (
     <div className="min-h-screen bg-field-parchment flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
-        {/* Animated trunk stub */}
-        <svg width="24" height="48" viewBox="0 0 24 48" fill="none">
-          <line
-            x1="12" y1="0" x2="12" y2="48"
-            stroke="#4B6B3A" strokeWidth="3"
-            strokeLinecap="round"
-            className="trunk-line"
-          />
-        </svg>
+        {/* Animated logo */}
+        <img 
+          src="/logo.jpg" 
+          alt="VrkshSaathi Logo" 
+          className="w-24 h-24 object-contain animate-pulse"
+        />
         <span className="font-sans text-sm text-slate-bark">Loading…</span>
       </div>
     </div>
@@ -117,10 +116,11 @@ export default function App() {
 
   // Default redirect for authenticated users
   function defaultDashboard() {
-    if (!user) return "/login";
+    if (!user) return "/";
     if (claims?.role === "registrar")  return "/registrar";
     if (claims?.role === "custodian")  return "/custodian";
     if (claims?.role === "ward_admin") return "/ward";
+    if (claims?.role === "super_admin")return "/super-admin";
     return "/unassigned";
   }
 
@@ -157,16 +157,26 @@ export default function App() {
         <Route
           path="/ward/*"
           element={
-            <RequireAuth allowedRoles={["ward_admin"]}>
+            <RequireAuth allowedRoles={["ward_admin", "super_admin"]}>
               <WardDashboard />
             </RequireAuth>
           }
         />
 
-        {/* ── Root redirect ── */}
+        {/* ── Super Admin ── */}
+        <Route
+          path="/super-admin/*"
+          element={
+            <RequireAuth allowedRoles={["super_admin"]}>
+              <SuperAdminDashboard />
+            </RequireAuth>
+          }
+        />
+
+        {/* ── Root ── */}
         <Route
           path="/"
-          element={<Navigate to={defaultDashboard()} replace />}
+          element={user ? <Navigate to={defaultDashboard()} replace /> : <LandingScanner />}
         />
 
         {/* ── 404 ── */}

@@ -59,6 +59,7 @@ export function MyTrees() {
               status={tree.status}
               lastVerifiedAt={tree.lastVerifiedAt?.toDate() || null}
               size="sm"
+              qrCodeUrl={tree.qrCodeUrl}
             />
           </div>
         ))}

@@ -39,6 +39,7 @@ service cloud.firestore {
     function isRegistrar() { return hasRole('registrar'); }
     function isCustodian() { return hasRole('custodian'); }
     function isWardAdmin() { return hasRole('ward_admin'); }
+    function isSuperAdmin() { return hasRole('super_admin'); }
 
     /** Registrar's own org */
     function myOrgId() {
@@ -59,9 +60,9 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────────
     match /organizations/{orgId} {
       allow read:   if isSignedIn();
-      allow create: if isWardAdmin();
-      allow update: if isWardAdmin() || isMyOrg(orgId);
-      allow delete: if isWardAdmin();
+      allow create: if isWardAdmin() || isSuperAdmin();
+      allow update: if isWardAdmin() || isSuperAdmin() || isMyOrg(orgId);
+      allow delete: if isWardAdmin() || isSuperAdmin();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -76,10 +77,10 @@ service cloud.firestore {
       // Registrar: create trees only under their org.
       // custodianId MUST be present — enforced here AND in the
       // createTree Cloud Function transaction.
-      allow create: if isRegistrar()
+      allow create: if isSuperAdmin() || isWardAdmin() || (isRegistrar()
                     && isMyOrg(request.resource.data.registrarOrgId)
                     && request.resource.data.custodianId != null
-                    && request.resource.data.custodianId != '';
+                    && request.resource.data.custodianId != '');
 
       // ── DEAD-status invariant (§4.5) ──────────────────────────
       // NO client — regardless of role, including ward_admin — may
@@ -121,11 +122,15 @@ service cloud.firestore {
                       // DEAD transition — they must also use confirmMortality.
                       isWardAdmin()
                       && notTransitioningToDead()
+                    )
+                    || (
+                      isSuperAdmin()
+                      && notTransitioningToDead()
                     );
                     // Admin SDK (Cloud Functions) bypasses all rules above —
                     // confirmMortality is the only path to DEAD for all roles.
 
-      allow delete: if isWardAdmin();
+      allow delete: if isWardAdmin() || isSuperAdmin();
     }
 
 
@@ -137,15 +142,16 @@ service cloud.firestore {
       allow list:   if isSignedIn();
 
       // Registrar can create custodians (when registering a tree)
-      allow create: if isRegistrar() || isWardAdmin();
+      allow create: if isRegistrar() || isWardAdmin() || isSuperAdmin();
 
       // Custodian can update their own doc (stats updated by Cloud Function,
       // but allow self-update of profile fields)
       allow update: if (isCustodian() && custodianId == myCustodianId())
                     || isRegistrar()
-                    || isWardAdmin();
+                    || isWardAdmin()
+                    || isSuperAdmin();
 
-      allow delete: if isWardAdmin();
+      allow delete: if isWardAdmin() || isSuperAdmin();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -175,11 +181,12 @@ service cloud.firestore {
         || (isRegistrar()
           && resource.data.assignedTo == myOrgId())
         // Ward admin: final tier
-        || isWardAdmin();
+        || isWardAdmin()
+        || isSuperAdmin();
         // NOTE: status flip to ESCALATED is done by the escalationScheduler
         // Cloud Function (admin SDK) — never by client directly.
 
-      allow delete: if isWardAdmin();
+      allow delete: if isWardAdmin() || isSuperAdmin();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -188,10 +195,10 @@ service cloud.firestore {
     match /checkpoints/{checkpointId} {
       allow read:   if true; // public (part of tree life-record)
       // Auto-created by onTreeCreate Cloud Function (admin SDK)
-      allow create: if isRegistrar() || isWardAdmin();
+      allow create: if isRegistrar() || isWardAdmin() || isSuperAdmin();
       // Only assigned custodian or registrar of that tree's org can complete
-      allow update: if isCustodian() || isRegistrar() || isWardAdmin();
-      allow delete: if isWardAdmin();
+      allow update: if isCustodian() || isRegistrar() || isWardAdmin() || isSuperAdmin();
+      allow delete: if isWardAdmin() || isSuperAdmin();
     }
 
     // ─────────────────────────────────────────────────────────────

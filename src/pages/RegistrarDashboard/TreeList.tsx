@@ -58,6 +58,7 @@ export function TreeList() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-field-parchment border-b border-field-parchment-dark text-slate-bark font-sans text-xs uppercase tracking-wider">
+                <th className="p-4 font-medium">QR Code</th>
                 <th className="p-4 font-medium">Tree ID</th>
                 <th className="p-4 font-medium">Species</th>
                 <th className="p-4 font-medium">Ward</th>
@@ -68,9 +69,18 @@ export function TreeList() {
             <tbody>
               {trees.map(tree => (
                 <tr key={tree.id} className="border-b border-field-parchment-dark hover:bg-field-parchment/30 transition-colors">
+                  <td className="p-4">
+                    {tree.qrCodeUrl ? (
+                      <a href={tree.qrCodeUrl} target="_blank" rel="noreferrer">
+                        <img src={tree.qrCodeUrl} alt="QR" className="w-10 h-10 border border-field-parchment-dark rounded-sm bg-white" />
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-bark">N/A</span>
+                    )}
+                  </td>
                   <td className="p-4 font-mono text-sm text-ink-bark">{tree.id}</td>
                   <td className="p-4 font-sans text-sm text-ink-bark font-medium">{tree.species}</td>
-                  <td className="p-4 font-sans text-sm text-slate-bark">{tree.ward}</td>
+                  <td className="p-4 font-sans text-sm text-slate-bark">{tree.location?.ward || tree.ward}</td>
                   <td className="p-4 font-sans text-sm text-ink-bark">{tree.custodianId}</td>
                   <td className="p-4">
                     <StatusBadge status={tree.status as TreeStatus} />

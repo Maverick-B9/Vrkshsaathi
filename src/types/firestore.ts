@@ -203,7 +203,7 @@ export interface PatternInsight {
 // Firebase Auth custom claims (set by Cloud Function, not client)
 // ─────────────────────────────────────────────────────────────────
 export interface AuthClaims {
-  role: "registrar" | "custodian" | "ward_admin";
+  role: "registrar" | "custodian" | "ward_admin" | "super_admin";
   orgId?: string;      // for registrars
   custodianId?: string; // for custodians
 }
