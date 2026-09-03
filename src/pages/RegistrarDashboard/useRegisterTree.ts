@@ -54,7 +54,7 @@ export function useRegisterTree() {
         registrarOrgId: payload.registrarOrgId,
         viabilityScore: payload.viabilityScore,
         status: "HEALTHY" as TreeStatus, // Initial status
-        plantedAt: serverTimestamp(),
+        plantedDate: serverTimestamp(),
         lastVerifiedAt: serverTimestamp(), // Registration counts as first verification
       });
 
