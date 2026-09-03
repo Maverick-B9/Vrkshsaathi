@@ -57,37 +57,47 @@ export function WardInsights() {
         </p>
         
         <div className="flex flex-col gap-4">
-          {insights.map(insight => {
-            let borderClass = "border-field-parchment-dark";
-            let bgClass = "bg-white";
-            let icon = "💡";
+          {insights.length === 0 ? (
+            <div className="bg-white rounded-tag border border-field-parchment-dark p-12 text-center shadow-sm">
+              <div className="text-4xl mb-4">✨</div>
+              <h3 className="font-display text-xl text-ink-bark">No Insights Generated Yet</h3>
+              <p className="font-sans text-sm text-slate-bark mt-1">
+                The weekly AI analysis will appear here once sufficient tree data is collected.
+              </p>
+            </div>
+          ) : (
+            insights.map(insight => {
+              let borderClass = "border-field-parchment-dark";
+              let bgClass = "bg-white";
+              let icon = "💡";
 
-            if (insight.severity === "HIGH") {
-              borderClass = "border-laterite-clay/30";
-              bgClass = "bg-laterite-clay/5";
-              icon = "⚠️";
-            } else if (insight.severity === "MEDIUM") {
-              borderClass = "border-turmeric-ochre/30";
-              bgClass = "bg-turmeric-ochre/5";
-              icon = "📊";
-            } else {
-              borderClass = "border-moss-canopy/30";
-              bgClass = "bg-moss-canopy/5";
-              icon = "✨";
-            }
+              if (insight.severity === "HIGH") {
+                borderClass = "border-laterite-clay/30";
+                bgClass = "bg-laterite-clay/5";
+                icon = "⚠️";
+              } else if (insight.severity === "MEDIUM") {
+                borderClass = "border-turmeric-ochre/30";
+                bgClass = "bg-turmeric-ochre/5";
+                icon = "📊";
+              } else {
+                borderClass = "border-moss-canopy/30";
+                bgClass = "bg-moss-canopy/5";
+                icon = "✨";
+              }
 
-            return (
-              <div key={insight.id} className={`p-6 rounded-tag border ${borderClass} ${bgClass} flex gap-4 items-start`}>
-                <div className="text-2xl mt-1">{icon}</div>
-                <div>
-                  <h3 className="font-sans text-lg font-medium text-ink-bark">{insight.title}</h3>
-                  <p className="font-sans text-base text-slate-bark mt-2 leading-relaxed">
-                    {insight.description}
-                  </p>
+              return (
+                <div key={insight.id} className={`p-6 rounded-tag border ${borderClass} ${bgClass} flex gap-4 items-start`}>
+                  <div className="text-2xl mt-1">{icon}</div>
+                  <div>
+                    <h3 className="font-sans text-lg font-medium text-ink-bark">{insight.title}</h3>
+                    <p className="font-sans text-base text-slate-bark mt-2 leading-relaxed">
+                      {insight.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
     </div>
