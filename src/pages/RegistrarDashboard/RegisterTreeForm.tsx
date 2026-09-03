@@ -286,6 +286,7 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
             <QRCodeSVG 
               value={`${window.location.origin}/tree/${createdTreeId}`} 
               size={200}
+              level="H"
               imageSettings={{
                 src: "/logo.jpg",
                 x: undefined,
