@@ -248,9 +248,50 @@ export const adminDeleteUser = onCall(
   }
 );
 
+// ─────────────────────────────────────────────────────────────────
+// 2d. adminUpdateUser — callable by super_admin
+//     Updates a user's password and/or display name.
+// ─────────────────────────────────────────────────────────────────
+export const adminUpdateUser = onCall(
+  { region: REGION },
+  async (request) => {
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || callerClaims.role !== "super_admin") {
+      throw new HttpsError("permission-denied", "Insufficient permissions to update users.");
+    }
+
+    const { targetUid, password, displayName } = request.data as {
+      targetUid: string;
+      password?: string;
+      displayName?: string;
+    };
+
+    if (!targetUid) {
+      throw new HttpsError("invalid-argument", "targetUid is required.");
+    }
+    
+    if (!password && !displayName) {
+      throw new HttpsError("invalid-argument", "Must provide password or displayName to update.");
+    }
+
+    try {
+      const updatePayload: any = {};
+      if (password) updatePayload.password = password;
+      if (displayName) updatePayload.displayName = displayName;
+
+      await admin.auth().updateUser(targetUid, updatePayload);
+      logger.info(`✅ Admin updated user ${targetUid}`);
+      return { success: true };
+    } catch (error: any) {
+      logger.error("Error updating user:", error);
+      throw new HttpsError("internal", error.message || "Failed to update user.");
+    }
+  }
+);
+
 
 // ─────────────────────────────────────────────────────────────────
-// 2b. verifyCustodianPhone — callable by a user to link their phone 
+// 2e. verifyCustodianPhone — callable by a user to link their phone 
 //     number to an existing custodian record and get their claims.
 // ─────────────────────────────────────────────────────────────────
 export const verifyCustodianPhone = onCall(

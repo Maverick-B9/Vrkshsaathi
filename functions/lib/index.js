@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.adminDeleteUser = exports.adminListUsers = exports.adminCreateUser = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
+exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.adminUpdateUser = exports.adminDeleteUser = exports.adminListUsers = exports.adminCreateUser = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
 /**
  * TREE-LIFE — Cloud Functions
  *
@@ -234,7 +234,38 @@ exports.adminDeleteUser = (0, https_1.onCall)({ region: REGION }, async (request
     }
 });
 // ─────────────────────────────────────────────────────────────────
-// 2b. verifyCustodianPhone — callable by a user to link their phone 
+// 2d. adminUpdateUser — callable by super_admin
+//     Updates a user's password and/or display name.
+// ─────────────────────────────────────────────────────────────────
+exports.adminUpdateUser = (0, https_1.onCall)({ region: REGION }, async (request) => {
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || callerClaims.role !== "super_admin") {
+        throw new https_1.HttpsError("permission-denied", "Insufficient permissions to update users.");
+    }
+    const { targetUid, password, displayName } = request.data;
+    if (!targetUid) {
+        throw new https_1.HttpsError("invalid-argument", "targetUid is required.");
+    }
+    if (!password && !displayName) {
+        throw new https_1.HttpsError("invalid-argument", "Must provide password or displayName to update.");
+    }
+    try {
+        const updatePayload = {};
+        if (password)
+            updatePayload.password = password;
+        if (displayName)
+            updatePayload.displayName = displayName;
+        await admin.auth().updateUser(targetUid, updatePayload);
+        v2_1.logger.info(`✅ Admin updated user ${targetUid}`);
+        return { success: true };
+    }
+    catch (error) {
+        v2_1.logger.error("Error updating user:", error);
+        throw new https_1.HttpsError("internal", error.message || "Failed to update user.");
+    }
+});
+// ─────────────────────────────────────────────────────────────────
+// 2e. verifyCustodianPhone — callable by a user to link their phone 
 //     number to an existing custodian record and get their claims.
 // ─────────────────────────────────────────────────────────────────
 exports.verifyCustodianPhone = (0, https_1.onCall)({ region: REGION }, async (request) => {
