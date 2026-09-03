@@ -41,56 +41,67 @@ function useJsQrScanner(onDetected: (value: string) => void) {
   const rafRef = useRef<number>(0);
   const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(true);
-
-  const tick = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || !activeRef.current) return;
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      rafRef.current = requestAnimationFrame(tick);
-      return;
-    }
-
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: "dontInvert",
-    });
-
-    if (code?.data) {
-      onDetected(code.data);
-      return; // stop ticking once detected
-    }
-
-    rafRef.current = requestAnimationFrame(tick);
-  }, [onDetected]);
+  // Stable ref so the tick loop never needs to re-mount when parent re-renders
+  const callbackRef = useRef(onDetected);
+  callbackRef.current = onDetected;
 
   useEffect(() => {
     activeRef.current = true;
 
+    function tick() {
+      if (!activeRef.current) return;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas) { rafRef.current = requestAnimationFrame(tick); return; }
+      if (video.readyState < video.HAVE_ENOUGH_DATA || video.videoWidth === 0) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) { rafRef.current = requestAnimationFrame(tick); return; }
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // "attemptBoth" handles both light-on-dark and dark-on-light QR codes
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "attemptBoth",
+      });
+
+      if (code?.data) {
+        callbackRef.current(code.data);
+        return; // stop the loop — navigation will unmount this component
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    }
+
     navigator.mediaDevices
       .getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width:  { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
         audio: false,
       })
       .then((stream) => {
         streamRef.current = stream;
         const video = videoRef.current;
-        if (!video) return;
+        if (!video || !activeRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
         video.srcObject = stream;
-        video.setAttribute("playsinline", "true"); // Required for iOS Safari
-        video.play().then(() => {
-          rafRef.current = requestAnimationFrame(tick);
-        });
+        video.setAttribute("playsinline", "true");
+        video.muted = true;
+        video.play()
+          .then(() => { rafRef.current = requestAnimationFrame(tick); })
+          .catch(console.error);
       })
       .catch((err) => {
-        console.error("Camera access error:", err);
+        console.error("Camera access denied:", err);
       });
 
     return () => {
@@ -98,10 +109,11 @@ function useJsQrScanner(onDetected: (value: string) => void) {
       cancelAnimationFrame(rafRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, [tick]);
+  }, []); // ← empty deps: runs once only, no camera restarts
 
   return { videoRef, canvasRef };
 }
+
 
 // ─── Main Component ───────────────────────────────────────────────
 export default function LandingScanner() {
