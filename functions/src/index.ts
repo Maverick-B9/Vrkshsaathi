@@ -184,6 +184,72 @@ export const adminCreateUser = onCall(
 );
 
 // ─────────────────────────────────────────────────────────────────
+// 2b. adminListUsers — callable by super_admin
+//     Lists up to 1000 users and their custom claims.
+// ─────────────────────────────────────────────────────────────────
+export const adminListUsers = onCall(
+  { region: REGION },
+  async (request) => {
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || callerClaims.role !== "super_admin") {
+      throw new HttpsError("permission-denied", "Insufficient permissions to list users.");
+    }
+
+    try {
+      const listUsersResult = await admin.auth().listUsers(1000);
+      const users = listUsersResult.users.map((record) => ({
+        uid: record.uid,
+        email: record.email,
+        displayName: record.displayName,
+        role: record.customClaims?.role || "none",
+        orgId: record.customClaims?.orgId,
+        custodianId: record.customClaims?.custodianId,
+        creationTime: record.metadata.creationTime,
+        lastSignInTime: record.metadata.lastSignInTime,
+      }));
+      return { success: true, users };
+    } catch (error: any) {
+      logger.error("Error listing users:", error);
+      throw new HttpsError("internal", "Failed to list users.");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────
+// 2c. adminDeleteUser — callable by super_admin
+//     Deletes a user account.
+// ─────────────────────────────────────────────────────────────────
+export const adminDeleteUser = onCall(
+  { region: REGION },
+  async (request) => {
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || callerClaims.role !== "super_admin") {
+      throw new HttpsError("permission-denied", "Insufficient permissions to delete users.");
+    }
+
+    const { targetUid } = request.data as { targetUid: string };
+    if (!targetUid) {
+      throw new HttpsError("invalid-argument", "targetUid is required.");
+    }
+
+    // Prevent self-deletion via this endpoint
+    if (targetUid === request.auth?.uid) {
+      throw new HttpsError("invalid-argument", "Cannot delete your own account via this method.");
+    }
+
+    try {
+      await admin.auth().deleteUser(targetUid);
+      logger.info(`✅ Admin deleted user ${targetUid}`);
+      return { success: true };
+    } catch (error: any) {
+      logger.error("Error deleting user:", error);
+      throw new HttpsError("internal", error.message || "Failed to delete user.");
+    }
+  }
+);
+
+
+// ─────────────────────────────────────────────────────────────────
 // 2b. verifyCustodianPhone — callable by a user to link their phone 
 //     number to an existing custodian record and get their claims.
 // ─────────────────────────────────────────────────────────────────

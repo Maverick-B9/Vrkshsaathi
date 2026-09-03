@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.adminCreateUser = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
+exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.adminDeleteUser = exports.adminListUsers = exports.adminCreateUser = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
 /**
  * TREE-LIFE — Cloud Functions
  *
@@ -176,6 +176,61 @@ exports.adminCreateUser = (0, https_1.onCall)({ region: REGION }, async (request
     catch (error) {
         v2_1.logger.error("Error creating user:", error);
         throw new https_1.HttpsError("internal", error.message || "Failed to create user.");
+    }
+});
+// ─────────────────────────────────────────────────────────────────
+// 2b. adminListUsers — callable by super_admin
+//     Lists up to 1000 users and their custom claims.
+// ─────────────────────────────────────────────────────────────────
+exports.adminListUsers = (0, https_1.onCall)({ region: REGION }, async (request) => {
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || callerClaims.role !== "super_admin") {
+        throw new https_1.HttpsError("permission-denied", "Insufficient permissions to list users.");
+    }
+    try {
+        const listUsersResult = await admin.auth().listUsers(1000);
+        const users = listUsersResult.users.map((record) => ({
+            uid: record.uid,
+            email: record.email,
+            displayName: record.displayName,
+            role: record.customClaims?.role || "none",
+            orgId: record.customClaims?.orgId,
+            custodianId: record.customClaims?.custodianId,
+            creationTime: record.metadata.creationTime,
+            lastSignInTime: record.metadata.lastSignInTime,
+        }));
+        return { success: true, users };
+    }
+    catch (error) {
+        v2_1.logger.error("Error listing users:", error);
+        throw new https_1.HttpsError("internal", "Failed to list users.");
+    }
+});
+// ─────────────────────────────────────────────────────────────────
+// 2c. adminDeleteUser — callable by super_admin
+//     Deletes a user account.
+// ─────────────────────────────────────────────────────────────────
+exports.adminDeleteUser = (0, https_1.onCall)({ region: REGION }, async (request) => {
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || callerClaims.role !== "super_admin") {
+        throw new https_1.HttpsError("permission-denied", "Insufficient permissions to delete users.");
+    }
+    const { targetUid } = request.data;
+    if (!targetUid) {
+        throw new https_1.HttpsError("invalid-argument", "targetUid is required.");
+    }
+    // Prevent self-deletion via this endpoint
+    if (targetUid === request.auth?.uid) {
+        throw new https_1.HttpsError("invalid-argument", "Cannot delete your own account via this method.");
+    }
+    try {
+        await admin.auth().deleteUser(targetUid);
+        v2_1.logger.info(`✅ Admin deleted user ${targetUid}`);
+        return { success: true };
+    }
+    catch (error) {
+        v2_1.logger.error("Error deleting user:", error);
+        throw new https_1.HttpsError("internal", error.message || "Failed to delete user.");
     }
 });
 // ─────────────────────────────────────────────────────────────────
