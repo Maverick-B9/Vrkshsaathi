@@ -101,13 +101,21 @@ export function SuperAdminTrees() {
                       <div className="text-xs">Org: {tree.registrarOrgId || "—"}</div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleDeleteTree(tree.id)}
-                        className="text-laterite-clay hover:text-red-700 font-medium transition-colors"
-                        title="Delete Tree"
-                      >
-                        Delete
-                      </button>
+                      <div className="flex justify-end gap-3">
+                        <a
+                          href={`/tree/${tree.id}`}
+                          className="text-moss-canopy hover:text-moss-canopy-dark font-medium transition-colors"
+                        >
+                          View Details
+                        </a>
+                        <button
+                          onClick={() => handleDeleteTree(tree.id)}
+                          className="text-laterite-clay hover:text-red-700 font-medium transition-colors"
+                          title="Delete Tree"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

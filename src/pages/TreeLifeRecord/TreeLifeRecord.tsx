@@ -2,6 +2,7 @@ import { useParams, Link } from "react-router-dom";
 import { useTreeHistory } from "./useTreeHistory";
 import { TimelineNode } from "./TimelineNode";
 import { Spinner, EmptyState, Button } from "../../components/ui";
+import { QRCodeSVG } from "qrcode.react";
 
 export default function TreeLifeRecord() {
   const { treeId } = useParams<{ treeId: string }>();
@@ -41,8 +42,8 @@ export default function TreeLifeRecord() {
               ID: {treeId} • {treeInfo.ward}
             </p>
             {treeInfo.qrCodeUrl && (
-              <a href={treeInfo.qrCodeUrl} target="_blank" rel="noreferrer" className="mt-2 block">
-                <img src={treeInfo.qrCodeUrl} alt="QR Code" className="w-12 h-12 border border-field-parchment-dark rounded-sm bg-white" />
+              <a href={treeInfo.qrCodeUrl} target="_blank" rel="noreferrer" className="mt-2 block w-max bg-white p-1 rounded-sm border border-field-parchment-dark hover:border-moss-canopy transition-colors">
+                <QRCodeSVG value={treeInfo.qrCodeUrl} size={48} level="L" />
               </a>
             )}
           </div>

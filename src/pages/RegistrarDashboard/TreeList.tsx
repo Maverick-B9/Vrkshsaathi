@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { QRCodeSVG } from "qrcode.react";
 import { db } from "../../firebase/config";
 import { StatusBadge } from "../../components/StatusBadge/StatusBadge";
 import type { TreeStatus } from "../../types/firestore";
@@ -121,8 +122,8 @@ export function TreeList() {
                   <tr key={tree.id} className="border-b border-field-parchment-dark hover:bg-field-parchment/30 transition-colors">
                     <td className="p-4">
                       {tree.qrCodeUrl ? (
-                        <a href={tree.qrCodeUrl} target="_blank" rel="noreferrer">
-                          <img src={tree.qrCodeUrl} alt="QR" className="w-10 h-10 border border-field-parchment-dark rounded-sm bg-white" />
+                        <a href={tree.qrCodeUrl} target="_blank" rel="noreferrer" className="block w-max bg-white p-1 rounded-sm border border-field-parchment-dark hover:border-moss-canopy transition-colors">
+                          <QRCodeSVG value={tree.qrCodeUrl} size={40} level="L" />
                         </a>
                       ) : (
                         <span className="text-xs text-slate-bark">N/A</span>
@@ -136,12 +137,20 @@ export function TreeList() {
                       <StatusBadge status={tree.status as TreeStatus} />
                     </td>
                     <td className="p-4 text-right">
-                      <button 
-                        onClick={() => handleDelete(tree.id)}
-                        className="text-laterite-clay hover:text-laterite-clay-light text-sm font-sans font-medium px-2 py-1"
-                      >
-                        Delete
-                      </button>
+                      <div className="flex justify-end gap-3 items-center">
+                        <a
+                          href={`/tree/${tree.id}`}
+                          className="text-moss-canopy hover:text-moss-canopy-dark text-sm font-sans font-medium transition-colors"
+                        >
+                          View Details
+                        </a>
+                        <button 
+                          onClick={() => handleDelete(tree.id)}
+                          className="text-laterite-clay hover:text-laterite-clay-light text-sm font-sans font-medium transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
