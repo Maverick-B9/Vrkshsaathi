@@ -284,7 +284,7 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
 
           <div className="p-4 bg-white border border-field-parchment-dark shadow-sm rounded-tag-inner">
             <QRCodeSVG 
-              value={`https://tree-life.app/tree/${createdTreeId}`} 
+              value={`${window.location.origin}/tree/${createdTreeId}`} 
               size={200}
               imageSettings={{
                 src: "/logo.jpg",

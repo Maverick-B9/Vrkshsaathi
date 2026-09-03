@@ -1,177 +1,27 @@
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 
 // ─── Falling Leaf ─────────────────────────────────────────────────
 interface Leaf {
-  id: number;
-  x: number;
-  size: number;
-  duration: number;
-  delay: number;
-  rotation: number;
-  emoji: string;
+  id: number; x: number; size: number;
+  duration: number; delay: number; rotation: number; emoji: string;
 }
-
 const LEAF_EMOJIS = ["🍃", "🍂", "🌿", "🍁", "🌱"];
-
 function useLeaves(count = 14) {
   const [leaves, setLeaves] = useState<Leaf[]>([]);
   useEffect(() => {
-    setLeaves(
-      Array.from({ length: count }, (_, i) => ({
-        id: i,
-        x: Math.random() * 100,
-        size: 16 + Math.random() * 20,
-        duration: 6 + Math.random() * 8,
-        delay: Math.random() * 10,
-        rotation: Math.random() * 360,
-        emoji: LEAF_EMOJIS[Math.floor(Math.random() * LEAF_EMOJIS.length)],
-      }))
-    );
+    setLeaves(Array.from({ length: count }, (_, i) => ({
+      id: i, x: Math.random() * 100,
+      size: 16 + Math.random() * 20,
+      duration: 6 + Math.random() * 8,
+      delay: Math.random() * 10,
+      rotation: Math.random() * 360,
+      emoji: LEAF_EMOJIS[Math.floor(Math.random() * LEAF_EMOJIS.length)],
+    })));
   }, [count]);
   return leaves;
-}
-
-// ─── Detect whether native BarcodeDetector is available ──────────
-const hasBarcodeDetector =
-  typeof window !== "undefined" && "BarcodeDetector" in window;
-
-// ─── Decode a static image file (gallery upload) ─────────────────
-async function decodeImageFile(file: File): Promise<string | null> {
-  if (hasBarcodeDetector) {
-    try {
-      // @ts-ignore — BarcodeDetector is not yet in TS lib
-      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-      const bitmap = await createImageBitmap(file);
-      const results = await detector.detect(bitmap);
-      bitmap.close();
-      if (results.length > 0) return results[0].rawValue;
-    } catch {/* fall through to jsQR */ }
-  }
-
-  // jsQR fallback (iOS Safari / Firefox)
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const img = new Image();
-      img.onload = async () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return resolve(null);
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        // Dynamic import so jsQR is only loaded when BarcodeDetector isn't available
-        const { default: jsQR } = await import("jsqr");
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "attemptBoth",
-        });
-        resolve(code?.data ?? null);
-      };
-      img.src = ev.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-// ─── Camera scanner hook ─────────────────────────────────────────
-function useCameraScanner(onDetected: (value: string) => void) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const activeRef = useRef(true);
-  const streamRef = useRef<MediaStream | null>(null);
-  const callbackRef = useRef(onDetected);
-  callbackRef.current = onDetected;
-
-  useEffect(() => {
-    activeRef.current = true;
-
-    navigator.mediaDevices
-      .getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width:  { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      })
-      .then((stream) => {
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (!video || !activeRef.current) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        video.srcObject = stream;
-        video.setAttribute("playsinline", "true");
-        video.muted = true;
-        video.play().then(startScanning).catch(console.error);
-      })
-      .catch((err) => console.error("Camera denied:", err));
-
-    async function startScanning() {
-      if (!activeRef.current) return;
-
-      const video = videoRef.current;
-      if (!video || video.videoWidth === 0) {
-        setTimeout(startScanning, 200);
-        return;
-      }
-
-      if (hasBarcodeDetector) {
-        // ── Native BarcodeDetector path (Chrome Android / Chrome Desktop) ──
-        // @ts-ignore
-        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-
-        const detectLoop = async () => {
-          if (!activeRef.current) return;
-          try {
-            const results = await detector.detect(video);
-            if (results.length > 0) {
-              callbackRef.current(results[0].rawValue);
-              return;
-            }
-          } catch { /* ignore frame errors */ }
-          setTimeout(detectLoop, 150);
-        };
-        detectLoop();
-      } else {
-        // ── jsQR fallback path (iOS Safari / Firefox) ─────────────────────
-        const canvas = document.createElement("canvas");
-        const { default: jsQR } = await import("jsqr");
-
-        const tickLoop = () => {
-          if (!activeRef.current || !video) return;
-          if (video.readyState >= video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
-            canvas.width  = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext("2d", { willReadFrequently: true });
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "attemptBoth",
-              });
-              if (code?.data) {
-                callbackRef.current(code.data);
-                return;
-              }
-            }
-          }
-          requestAnimationFrame(tickLoop);
-        };
-        requestAnimationFrame(tickLoop);
-      }
-    }
-
-    return () => {
-      activeRef.current = false;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
-    };
-  }, []); // runs once only
-
-  return videoRef;
 }
 
 // ─── Main Component ───────────────────────────────────────────────
@@ -180,72 +30,142 @@ export default function LandingScanner() {
   const [hasScanned, setHasScanned] = useState(false);
   const [scanError, setScanError] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [cameraError, setCameraError] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const leaves = useLeaves(14);
+  const detectedRef = useRef(false); // prevent double-fire
 
+  // ── Route QR payload ───────────────────────────────────────────
   const routeQR = (raw: string): boolean => {
     if (!raw) return false;
-    // VrkshSaathi tree URL — navigate internally
-    if (raw.includes("/tree/")) {
-      const treeId = raw.split("/tree/")[1]?.split("?")[0];
-      if (treeId) { navigate(`/tree/${treeId}`); return true; }
-    }
-    // Any other URL — navigate externally
-    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    try {
+      const url = new URL(raw);
+      // Internal VrkshSaathi tree link
+      if (url.pathname.includes("/tree/")) {
+        const treeId = url.pathname.split("/tree/")[1]?.split("?")[0];
+        if (treeId) { navigate(`/tree/${treeId}`); return true; }
+      }
+      // Any other valid URL
       window.location.href = raw;
       return true;
+    } catch {
+      // Not a URL — check for bare /tree/ path
+      if (raw.includes("/tree/")) {
+        const treeId = raw.split("/tree/")[1]?.split("?")[0];
+        if (treeId) { navigate(`/tree/${treeId}`); return true; }
+      }
+      return false;
     }
-    return false;
   };
 
   const handleDetected = (raw: string) => {
-    if (hasScanned) return;
+    if (detectedRef.current) return;
+    detectedRef.current = true;
     setHasScanned(true);
+
+    // Stop the scanner immediately
+    scannerRef.current?.stop().catch(() => {});
+
     const ok = routeQR(raw);
     if (!ok) {
       setScanError(true);
-      setTimeout(() => { setHasScanned(false); setScanError(false); }, 2500);
+      setTimeout(() => {
+        setHasScanned(false);
+        setScanError(false);
+        detectedRef.current = false;
+        // Restart camera
+        startCamera();
+      }, 2500);
     }
   };
 
-  const videoRef = useCameraScanner(handleDetected);
+  // ── Start html5-qrcode camera ──────────────────────────────────
+  const startCamera = () => {
+    const qr = scannerRef.current;
+    if (!qr) return;
+    qr.start(
+      { facingMode: "environment" },
+      {
+        fps: 15,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        disableFlip: false,
+      },
+      (decodedText) => handleDetected(decodedText),
+      () => {} // ignore per-frame errors
+    )
+      .then(() => setCameraReady(true))
+      .catch((err) => {
+        console.error("Camera start failed:", err);
+        setCameraReady(false);
+      });
+  };
 
+  useEffect(() => {
+    // Give the DOM element a moment to mount
+    const timer = setTimeout(() => {
+      const qr = new Html5Qrcode("qr-reader", { verbose: false });
+      scannerRef.current = qr;
+      startCamera();
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      scannerRef.current?.stop()
+        .catch(() => {})
+        .finally(() => scannerRef.current?.clear());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Gallery upload ─────────────────────────────────────────────
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (fileInputRef.current) fileInputRef.current.value = "";
 
     setUploading(true);
-    const result = await decodeImageFile(file);
-    setUploading(false);
+    try {
+      // Stop live camera while scanning file
+      await scannerRef.current?.stop().catch(() => {});
 
-    if (result) {
+      const qr = new Html5Qrcode("qr-reader-file", { verbose: false });
+      const result = await qr.scanFile(file, /* showImage */ false);
+      await qr.clear();
       handleDetected(result);
-    } else {
+    } catch {
+      // Restart camera after failed file scan
+      startCamera();
       alert("No QR code found in this image. Try a clearer photo.");
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden flex flex-col items-center justify-between bg-[#f4f8f0]">
 
-      {/* ── Camera Video Background ──────────────────────────────── */}
-      <div className="absolute inset-0 z-0">
-        <video
-          ref={videoRef}
-          muted
-          playsInline
-          className="w-full h-full object-cover"
-          style={{ opacity: 0.4, filter: "saturate(0.55)" }}
-          onError={() => setCameraError(true)}
-        />
-        {/* Parchment wash */}
-        <div className="absolute inset-0 bg-[#f4f8f0]/60 pointer-events-none" />
-      </div>
+      {/* ── html5-qrcode mounts here — we style it to be the background ── */}
+      <div
+        id="qr-reader"
+        className="absolute inset-0 z-0 overflow-hidden"
+        style={{
+          // Override html5-qrcode's default styles
+          border: "none",
+        }}
+      />
+      {/* Hidden div for file scanning (html5-qrcode needs a DOM target) */}
+      <div id="qr-reader-file" className="hidden" />
+
+      {/* Parchment + desaturation wash over the camera feed */}
+      <div
+        className="absolute inset-0 z-[1] pointer-events-none"
+        style={{ background: "rgba(244,248,240,0.60)", backdropFilter: "saturate(0.55)" }}
+      />
 
       {/* ── Falling Leaves ──────────────────────────────────────── */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden z-10">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden z-[2]">
         {leaves.map((leaf) => (
           <motion.span
             key={leaf.id}
@@ -269,7 +189,7 @@ export default function LandingScanner() {
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="relative z-20 w-full flex flex-col items-center pt-14 pb-4 px-6 pointer-events-none"
+        className="relative z-[3] w-full flex flex-col items-center pt-14 pb-4 px-6 pointer-events-none"
       >
         <motion.div
           animate={{ scale: [1, 1.06, 1] }}
@@ -282,27 +202,26 @@ export default function LandingScanner() {
           VrkshSaathi
         </h1>
         <p className="font-sans text-sm text-slate-bark mt-1 text-center max-w-[280px] leading-relaxed">
-          {cameraError
-            ? "Camera unavailable — upload a QR photo from your gallery below."
-            : "Align the QR tag within the frame to view a tree's life record."}
+          {cameraReady
+            ? "Align the QR tag within the frame to view a tree's life record."
+            : "Starting camera…"}
         </p>
       </motion.div>
 
-      {/* ── Scanner Viewfinder ───────────────────────────────────── */}
+      {/* ── Decorative Viewfinder Overlay ────────────────────────── */}
       <motion.div
         initial={{ scale: 0.88, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.9, delay: 0.15 }}
-        className="relative z-20 flex flex-col items-center gap-5 px-6 mb-auto mt-auto pointer-events-none"
+        className="relative z-[3] flex flex-col items-center gap-5 px-6 mb-auto mt-auto pointer-events-none"
       >
+        {/* Corner brackets — purely decorative, html5-qrcode's viewfinder does actual scanning */}
         <div className="relative w-[270px] aspect-square">
-          {/* Scanning line */}
           <motion.div
             className="absolute left-[4px] right-[4px] h-[3px] bg-moss-canopy shadow-[0_0_14px_rgba(75,107,58,0.9)] z-20"
             animate={{ top: ["4%", "96%", "4%"] }}
             transition={{ duration: 2.2, ease: "linear", repeat: Infinity }}
           />
-          {/* Corner brackets */}
           {[
             "top-0 left-0 border-t-4 border-l-4 rounded-tl-[28px]",
             "top-0 right-0 border-t-4 border-r-4 rounded-tr-[28px]",
@@ -358,7 +277,7 @@ export default function LandingScanner() {
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, delay: 0.35 }}
-        className="relative z-20 w-full px-8 pb-10 pt-6 bg-gradient-to-t from-[#f4f8f0]/95 via-[#f4f8f0]/80 to-transparent flex flex-col items-center gap-4"
+        className="relative z-[3] w-full px-8 pb-10 pt-6 bg-gradient-to-t from-[#f4f8f0]/95 via-[#f4f8f0]/80 to-transparent flex flex-col items-center gap-4"
       >
         <input
           type="file"
@@ -373,9 +292,9 @@ export default function LandingScanner() {
           className="w-full max-w-xs bg-white border border-moss-canopy/40 hover:bg-moss-canopy/5 text-moss-canopy font-sans font-medium text-sm py-3 px-6 rounded-full flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 disabled:opacity-60"
         >
           {uploading ? (
-            <><div className="w-4 h-4 border-2 border-moss-canopy border-t-transparent rounded-full animate-spin" /> Scanning image…</>
+            <><div className="w-4 h-4 border-2 border-moss-canopy border-t-transparent rounded-full animate-spin" />Scanning image…</>
           ) : (
-            <><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> Upload from Gallery</>
+            <><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>Upload from Gallery</>
           )}
         </button>
 
