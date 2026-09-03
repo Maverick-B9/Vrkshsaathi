@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
+exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.adminCreateUser = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
 /**
  * TREE-LIFE — Cloud Functions
  *
@@ -121,7 +121,7 @@ exports.onTreeCreate = (0, firestore_1.onDocumentCreated)({ document: "trees/{tr
 exports.setUserClaims = (0, https_1.onCall)({ region: REGION }, async (request) => {
     // Only a ward_admin (or service account) can set claims for others
     const callerClaims = request.auth?.token;
-    if (!callerClaims || callerClaims.role !== "ward_admin") {
+    if (!callerClaims || (callerClaims.role !== "ward_admin" && callerClaims.role !== "super_admin")) {
         // Self-registration: allow registrar/custodian claim to be set
         // only if the user has no role yet (first-time setup)
         if (callerClaims?.role) {
@@ -140,6 +140,43 @@ exports.setUserClaims = (0, https_1.onCall)({ region: REGION }, async (request) 
     await admin.auth().setCustomUserClaims(uid, claims);
     v2_1.logger.info(`✅ Custom claims set for ${uid}: role=${role}`);
     return { success: true };
+});
+// ─────────────────────────────────────────────────────────────────
+// 2a. adminCreateUser — callable by super_admin
+//     Creates a Firebase Auth user with email/password and sets 
+//     their custom claims immediately.
+// ─────────────────────────────────────────────────────────────────
+exports.adminCreateUser = (0, https_1.onCall)({ region: REGION }, async (request) => {
+    // Only super_admin or ward_admin can create users this way
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || (callerClaims.role !== "super_admin" && callerClaims.role !== "ward_admin")) {
+        throw new https_1.HttpsError("permission-denied", "Insufficient permissions to create users.");
+    }
+    const { email, password, name, role, orgId, custodianId } = request.data;
+    if (!email || !password || !role) {
+        throw new https_1.HttpsError("invalid-argument", "email, password, and role are required.");
+    }
+    try {
+        // 1. Create the user
+        const userRecord = await admin.auth().createUser({
+            email,
+            password,
+            displayName: name,
+        });
+        // 2. Set claims
+        const claims = { role };
+        if (orgId)
+            claims.orgId = orgId;
+        if (custodianId)
+            claims.custodianId = custodianId;
+        await admin.auth().setCustomUserClaims(userRecord.uid, claims);
+        v2_1.logger.info(`✅ Admin created user ${userRecord.uid} (${email}) with role=${role}`);
+        return { success: true, uid: userRecord.uid };
+    }
+    catch (error) {
+        v2_1.logger.error("Error creating user:", error);
+        throw new https_1.HttpsError("internal", error.message || "Failed to create user.");
+    }
 });
 // ─────────────────────────────────────────────────────────────────
 // 2b. verifyCustodianPhone — callable by a user to link their phone 
@@ -337,7 +374,7 @@ exports.generateQRCode = (0, https_1.onCall)({ region: REGION }, async (request)
 //    Calls Gemini Vision API, stores aiHealthSignal on incident doc.
 //    AI is advisory only — never resolves or closes an incident.
 // ─────────────────────────────────────────────────────────────────
-exports.analyzeIncidentPhoto = (0, storage_1.onObjectFinalized)({ region: "us-east1", bucket: process.env.STORAGE_BUCKET }, async (event) => {
+exports.analyzeIncidentPhoto = (0, storage_1.onObjectFinalized)({ region: "us-east1", bucket: process.env.STORAGE_BUCKET, secrets: ["GEMINI_API_KEY"] }, async (event) => {
     const filePath = event.data.name;
     // Only process incident photos
     if (!filePath || !filePath.startsWith("incidents/"))
@@ -412,7 +449,7 @@ Respond with a JSON object only, no markdown:
 //    {category, severity, freeTextSummary} for citizen confirmation.
 //    Never auto-submits — citizen always confirms before submit.
 // ─────────────────────────────────────────────────────────────────
-exports.parseVoiceNote = (0, https_1.onCall)({ region: REGION }, async (request) => {
+exports.parseVoiceNote = (0, https_1.onCall)({ region: REGION, secrets: ["GEMINI_API_KEY"] }, async (request) => {
     const { audioBase64, mimeType, languageCode } = request.data;
     if (!audioBase64 || !languageCode) {
         throw new https_1.HttpsError("invalid-argument", "audioBase64 and languageCode are required.");
@@ -488,6 +525,7 @@ exports.generatePatternInsights = (0, scheduler_1.onSchedule)({
     schedule: "0 0 * * 0", // Every Sunday at midnight
     region: REGION,
     timeZone: "Asia/Kolkata",
+    secrets: ["GEMINI_API_KEY"],
 }, async () => {
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (!geminiApiKey) {

@@ -140,6 +140,50 @@ export const setUserClaims = onCall(
 );
 
 // ─────────────────────────────────────────────────────────────────
+// 2a. adminCreateUser — callable by super_admin
+//     Creates a Firebase Auth user with email/password and sets 
+//     their custom claims immediately.
+// ─────────────────────────────────────────────────────────────────
+export const adminCreateUser = onCall(
+  { region: REGION },
+  async (request) => {
+    // Only super_admin or ward_admin can create users this way
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || (callerClaims.role !== "super_admin" && callerClaims.role !== "ward_admin")) {
+      throw new HttpsError("permission-denied", "Insufficient permissions to create users.");
+    }
+
+    const { email, password, name, role, orgId, custodianId } = request.data as any;
+
+    if (!email || !password || !role) {
+      throw new HttpsError("invalid-argument", "email, password, and role are required.");
+    }
+
+    try {
+      // 1. Create the user
+      const userRecord = await admin.auth().createUser({
+        email,
+        password,
+        displayName: name,
+      });
+
+      // 2. Set claims
+      const claims: Record<string, unknown> = { role };
+      if (orgId) claims.orgId = orgId;
+      if (custodianId) claims.custodianId = custodianId;
+
+      await admin.auth().setCustomUserClaims(userRecord.uid, claims);
+      logger.info(`✅ Admin created user ${userRecord.uid} (${email}) with role=${role}`);
+
+      return { success: true, uid: userRecord.uid };
+    } catch (error: any) {
+      logger.error("Error creating user:", error);
+      throw new HttpsError("internal", error.message || "Failed to create user.");
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────
 // 2b. verifyCustodianPhone — callable by a user to link their phone 
 //     number to an existing custodian record and get their claims.
 // ─────────────────────────────────────────────────────────────────
@@ -408,7 +452,7 @@ export const generateQRCode = onCall(
 //    AI is advisory only — never resolves or closes an incident.
 // ─────────────────────────────────────────────────────────────────
 export const analyzeIncidentPhoto = onObjectFinalized(
-  { region: "us-central1", bucket: process.env.STORAGE_BUCKET, secrets: ["GEMINI_API_KEY"] },
+  { region: "us-east1", bucket: process.env.STORAGE_BUCKET, secrets: ["GEMINI_API_KEY"] },
   async (event) => {
     const filePath = event.data.name;
     // Only process incident photos
