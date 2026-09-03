@@ -33,7 +33,7 @@ async function run() {
     const setUserClaims = httpsCallable(functions, "setUserClaims");
     const result = await setUserClaims({
       uid: user.uid,
-      role: "ward_admin",
+      role: "super_admin",
       orgId: "org-ngo"
     });
 
