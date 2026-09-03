@@ -29,7 +29,7 @@ export function RegistrarLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-field-parchment flex flex-col md:flex-row pb-16 md:pb-0">
+    <div className="min-h-[100dvh] bg-field-parchment flex flex-col md:flex-row pb-20 md:pb-0">
       {/* Mobile Header */}
       <header className="md:hidden bg-white border-b border-field-parchment-dark p-4 flex justify-between items-center z-10 sticky top-0">
         <div>

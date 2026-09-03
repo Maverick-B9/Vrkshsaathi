@@ -46,12 +46,13 @@ export function TreeList() {
 
   return (
     <div className="flex flex-col gap-6 animate-fade-up">
-      <div className="flex justify-between items-end">
-        <h2 className="font-display text-3xl text-ink-bark">Registered Trees</h2>
+      {/* Header + filter */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
+        <h2 className="font-display text-2xl sm:text-3xl text-ink-bark">Registered Trees</h2>
         <select 
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-white border border-field-parchment-dark text-ink-bark font-sans text-sm rounded-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ui-focus-ring"
+          className="self-start sm:self-auto bg-white border border-field-parchment-dark text-ink-bark font-sans text-sm rounded-full px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ui-focus-ring"
         >
           <option value="ALL">All Statuses</option>
           <option value="HEALTHY">Healthy</option>
@@ -60,57 +61,95 @@ export function TreeList() {
         </select>
       </div>
 
-      <div className="bg-white rounded-tag shadow-sm border border-field-parchment-dark overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-slate-bark">Loading...</div>
-        ) : trees.length === 0 ? (
-          <div className="p-8 text-center text-slate-bark">No trees found.</div>
-        ) : (
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-field-parchment border-b border-field-parchment-dark text-slate-bark font-sans text-xs uppercase tracking-wider">
-                <th className="p-4 font-medium">QR Code</th>
-                <th className="p-4 font-medium">Tree ID</th>
-                <th className="p-4 font-medium">Species</th>
-                <th className="p-4 font-medium">Ward</th>
-                <th className="p-4 font-medium">Custodian</th>
-                <th className="p-4 font-medium">Status</th>
-                <th className="p-4 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trees.map(tree => (
-                <tr key={tree.id} className="border-b border-field-parchment-dark hover:bg-field-parchment/30 transition-colors">
-                  <td className="p-4">
+      {loading ? (
+        <div className="p-8 text-center text-slate-bark">Loading...</div>
+      ) : trees.length === 0 ? (
+        <div className="bg-white rounded-tag p-8 text-center shadow-sm border border-field-parchment-dark text-slate-bark">
+          No trees found.
+        </div>
+      ) : (
+        <>
+          {/* ── Mobile card list (hidden on md+) ───────────────── */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {trees.map(tree => (
+              <div key={tree.id} className="bg-white rounded-tag p-4 border border-field-parchment-dark shadow-sm flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
                     {tree.qrCodeUrl ? (
                       <a href={tree.qrCodeUrl} target="_blank" rel="noreferrer">
-                        <img src={tree.qrCodeUrl} alt="QR" className="w-10 h-10 border border-field-parchment-dark rounded-sm bg-white" />
+                        <img src={tree.qrCodeUrl} alt="QR" className="w-10 h-10 border border-field-parchment-dark rounded-sm bg-white flex-shrink-0" />
                       </a>
                     ) : (
-                      <span className="text-xs text-slate-bark">N/A</span>
+                      <div className="w-10 h-10 border border-field-parchment-dark rounded-sm bg-field-parchment flex items-center justify-center text-lg">🌳</div>
                     )}
-                  </td>
-                  <td className="p-4 font-mono text-sm text-ink-bark">{tree.id}</td>
-                  <td className="p-4 font-sans text-sm text-ink-bark font-medium">{tree.species}</td>
-                  <td className="p-4 font-sans text-sm text-slate-bark">{tree.location?.ward || tree.ward}</td>
-                  <td className="p-4 font-sans text-sm text-ink-bark">{tree.custodianId}</td>
-                  <td className="p-4">
-                    <StatusBadge status={tree.status as TreeStatus} />
-                  </td>
-                  <td className="p-4 text-right">
-                    <button 
-                      onClick={() => handleDelete(tree.id)}
-                      className="text-laterite-clay hover:text-laterite-clay-light text-sm font-sans font-medium px-2 py-1"
-                    >
-                      Delete
-                    </button>
-                  </td>
+                    <div>
+                      <p className="font-sans text-sm font-semibold text-ink-bark">{tree.species}</p>
+                      <p className="font-sans text-xs text-slate-bark">{tree.location?.ward || tree.ward}</p>
+                    </div>
+                  </div>
+                  <StatusBadge status={tree.status as TreeStatus} />
+                </div>
+                <div className="flex items-center justify-between border-t border-field-parchment-dark pt-2">
+                  <p className="font-mono text-[10px] text-slate-bark truncate max-w-[160px]">{tree.id}</p>
+                  <button
+                    onClick={() => handleDelete(tree.id)}
+                    className="text-laterite-clay text-xs font-sans font-medium px-3 py-1 rounded-full border border-laterite-clay/30 hover:bg-laterite-clay/10 active:scale-95 transition-all"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Desktop table (hidden on mobile) ────────────────── */}
+          <div className="hidden md:block bg-white rounded-tag shadow-sm border border-field-parchment-dark overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-field-parchment border-b border-field-parchment-dark text-slate-bark font-sans text-xs uppercase tracking-wider">
+                  <th className="p-4 font-medium">QR Code</th>
+                  <th className="p-4 font-medium">Tree ID</th>
+                  <th className="p-4 font-medium">Species</th>
+                  <th className="p-4 font-medium">Ward</th>
+                  <th className="p-4 font-medium">Custodian</th>
+                  <th className="p-4 font-medium">Status</th>
+                  <th className="p-4 font-medium text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {trees.map(tree => (
+                  <tr key={tree.id} className="border-b border-field-parchment-dark hover:bg-field-parchment/30 transition-colors">
+                    <td className="p-4">
+                      {tree.qrCodeUrl ? (
+                        <a href={tree.qrCodeUrl} target="_blank" rel="noreferrer">
+                          <img src={tree.qrCodeUrl} alt="QR" className="w-10 h-10 border border-field-parchment-dark rounded-sm bg-white" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-bark">N/A</span>
+                      )}
+                    </td>
+                    <td className="p-4 font-mono text-sm text-ink-bark">{tree.id}</td>
+                    <td className="p-4 font-sans text-sm text-ink-bark font-medium">{tree.species}</td>
+                    <td className="p-4 font-sans text-sm text-slate-bark">{tree.location?.ward || tree.ward}</td>
+                    <td className="p-4 font-sans text-sm text-ink-bark">{tree.custodianId}</td>
+                    <td className="p-4">
+                      <StatusBadge status={tree.status as TreeStatus} />
+                    </td>
+                    <td className="p-4 text-right">
+                      <button 
+                        onClick={() => handleDelete(tree.id)}
+                        className="text-laterite-clay hover:text-laterite-clay-light text-sm font-sans font-medium px-2 py-1"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

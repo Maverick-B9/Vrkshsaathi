@@ -74,25 +74,25 @@ export function WardOverview() {
   }
 
   return (
-    <div className="flex flex-col gap-8 animate-fade-up">
+    <div className="flex flex-col gap-6 animate-fade-up">
       {/* Top Level Stats */}
       <div>
-        <h2 className="font-display text-3xl text-ink-bark mb-4">Ward Telemetry</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-moss-canopy/10 border border-moss-canopy/30 rounded-tag p-6 flex flex-col justify-between">
-            <span className="font-sans text-sm font-medium text-moss-canopy-dark uppercase tracking-wide">Survival Rate</span>
+        <h2 className="font-display text-2xl sm:text-3xl text-ink-bark mb-4">Ward Telemetry</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="bg-moss-canopy/10 border border-moss-canopy/30 rounded-tag p-5 flex flex-col justify-between">
+            <span className="font-sans text-xs font-medium text-moss-canopy-dark uppercase tracking-wide">Survival Rate</span>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="font-display text-4xl text-moss-canopy-dark">{stats.survivalRate}%</span>
-              <span className="font-sans text-sm text-moss-canopy">ward average</span>
+              <span className="font-display text-3xl sm:text-4xl text-moss-canopy-dark">{stats.survivalRate}%</span>
+              <span className="font-sans text-xs text-moss-canopy">ward avg</span>
             </div>
           </div>
-          <div className="bg-white border border-field-parchment-dark rounded-tag p-6 flex flex-col justify-between shadow-sm">
-            <span className="font-sans text-sm font-medium text-slate-bark uppercase tracking-wide">Total Planted</span>
-            <span className="mt-2 font-display text-4xl text-ink-bark">{stats.totalPlanted.toLocaleString()}</span>
+          <div className="bg-white border border-field-parchment-dark rounded-tag p-5 flex flex-col justify-between shadow-sm">
+            <span className="font-sans text-xs font-medium text-slate-bark uppercase tracking-wide">Total Planted</span>
+            <span className="mt-2 font-display text-3xl sm:text-4xl text-ink-bark">{stats.totalPlanted.toLocaleString()}</span>
           </div>
-          <div className="bg-white border border-field-parchment-dark rounded-tag p-6 flex flex-col justify-between shadow-sm">
-            <span className="font-sans text-sm font-medium text-slate-bark uppercase tracking-wide">Active Escalations</span>
-            <span className="mt-2 font-display text-4xl text-turmeric-ochre">{stats.activeIncidents.toLocaleString()}</span>
+          <div className="bg-white border border-field-parchment-dark rounded-tag p-5 flex flex-col justify-between shadow-sm">
+            <span className="font-sans text-xs font-medium text-slate-bark uppercase tracking-wide">Active Escalations</span>
+            <span className="mt-2 font-display text-3xl sm:text-4xl text-turmeric-ochre">{stats.activeIncidents.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -100,13 +100,39 @@ export function WardOverview() {
       {/* Three-Tier Leaderboard */}
       <div>
         <div className="mb-4">
-          <h3 className="font-display text-2xl text-ink-bark">Organization Leaderboard</h3>
-          <p className="font-sans text-sm text-slate-bark mt-1">
-            Ranked strictly by Survival Rate and Stewardship to reward care over raw planting volume.
+          <h3 className="font-display text-xl sm:text-2xl text-ink-bark">Organization Leaderboard</h3>
+          <p className="font-sans text-xs sm:text-sm text-slate-bark mt-1">
+            Ranked by Survival Rate and Stewardship — not raw planting volume.
           </p>
         </div>
 
-        <div className="bg-white rounded-tag shadow-sm border border-field-parchment-dark overflow-hidden">
+        {/* ── Mobile cards ───────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 sm:hidden">
+          {leaderboard.map((org, index) => (
+            <div key={org.id} className="bg-white rounded-tag p-4 border border-field-parchment-dark shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl">
+                  {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`}
+                </span>
+                <span className="font-mono text-lg font-bold text-moss-canopy-dark">{org.survivalRate}%</span>
+              </div>
+              <p className="font-sans text-sm font-semibold text-ink-bark">{org.name}</p>
+              <div className="flex gap-4 mt-2">
+                <div>
+                  <p className="font-sans text-[10px] uppercase text-slate-bark tracking-wide">Stewardship</p>
+                  <p className="font-mono text-sm text-ink-bark">{org.stewardshipScore}%</p>
+                </div>
+                <div>
+                  <p className="font-sans text-[10px] uppercase text-slate-bark tracking-wide">Planted</p>
+                  <p className="font-mono text-sm text-ink-bark">{org.totalPlanted.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Desktop table ───────────────────────────────────────── */}
+        <div className="hidden sm:block bg-white rounded-tag shadow-sm border border-field-parchment-dark overflow-hidden">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-field-parchment border-b border-field-parchment-dark text-slate-bark font-sans text-xs uppercase tracking-wider">
