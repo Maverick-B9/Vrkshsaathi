@@ -30,36 +30,54 @@ export function WardOverview() {
         const treesQ = collection(db, "trees");
         const incQ = query(collection(db, "incidents")); // In a real app: where("status", "==", "PENDING")
 
-        // Using Firestore getAggregateFromServer for performant counts
-        const treeAgg = await getAggregateFromServer(treesQ, {
-          totalCount: count()
-        });
         const incAgg = await getAggregateFromServer(incQ, {
           totalCount: count()
         });
-
-        // Mocking the survival rate and leaderboard for the UI
-        setStats({
-          totalPlanted: treeAgg.data().totalCount,
-          activeIncidents: incAgg.data().totalCount,
-          survivalRate: 92.4 // Mocked ward average
+        const treeDocs = await getDocs(treesQ);
+        
+        let healthyCount = 0;
+        let totalTrees = 0;
+        const orgMap: Record<string, { total: number; healthy: number }> = {};
+        
+        treeDocs.forEach(doc => {
+          const t = doc.data();
+          totalTrees++;
+          if (t.healthStatus === "HEALTHY") healthyCount++;
+          
+          if (t.registrarOrgId) {
+            if (!orgMap[t.registrarOrgId]) orgMap[t.registrarOrgId] = { total: 0, healthy: 0 };
+            orgMap[t.registrarOrgId].total++;
+            if (t.healthStatus === "HEALTHY") orgMap[t.registrarOrgId].healthy++;
+          }
         });
 
-        // Generate mock leaderboard enforcing the three-tier logic
-        const mockLeaderboard: OrgStat[] = [
-          { id: "org-3", name: "Green Earth NGO", survivalRate: 98.1, stewardshipScore: 95.0, totalPlanted: 450 },
-          { id: "org-1", name: "Rotary Club East", survivalRate: 94.5, stewardshipScore: 89.2, totalPlanted: 1200 },
-          { id: "org-2", name: "Lions Club", survivalRate: 88.0, stewardshipScore: 75.4, totalPlanted: 3200 }, // High count, low rank
-        ];
+        const overallSurvival = totalTrees > 0 ? (healthyCount / totalTrees * 100).toFixed(1) : "0.0";
+        
+        setStats({
+          totalPlanted: totalTrees,
+          activeIncidents: incAgg.data().totalCount,
+          survivalRate: parseFloat(overallSurvival)
+        });
 
-        // Ensure strict sorting: Survival Rate (DESC) -> Stewardship (DESC) -> Count (DESC)
-        mockLeaderboard.sort((a, b) => {
+        const realLeaderboard: OrgStat[] = Object.keys(orgMap).map(orgId => {
+          const org = orgMap[orgId];
+          const orgSurvival = (org.healthy / org.total * 100);
+          return {
+            id: orgId,
+            name: orgId, // Using orgId as name since we don't have an organizations collection
+            survivalRate: parseFloat(orgSurvival.toFixed(1)),
+            stewardshipScore: 100, // Placeholder until incident resolution times are tracked
+            totalPlanted: org.total
+          };
+        });
+
+        realLeaderboard.sort((a, b) => {
           if (b.survivalRate !== a.survivalRate) return b.survivalRate - a.survivalRate;
           if (b.stewardshipScore !== a.stewardshipScore) return b.stewardshipScore - a.stewardshipScore;
           return b.totalPlanted - a.totalPlanted;
         });
 
-        setLeaderboard(mockLeaderboard);
+        setLeaderboard(realLeaderboard);
       } catch (err) {
         console.error("Failed to fetch ward aggregates", err);
       } finally {

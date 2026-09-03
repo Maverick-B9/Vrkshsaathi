@@ -19,22 +19,7 @@ export function WardEscalations() {
         const snap = await getDocs(q);
         const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        // Mocking some data for the UI if firestore is empty
-        if (data.length === 0) {
-          console.log("No escalations found in db, injecting mock escalation for demo...");
-          setEscalations([{
-            id: "esc-123",
-            treeId: "tree-999",
-            category: "WATER_NEEDED",
-            severity: "HIGH",
-            createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            escalationLevel: "WARD",
-            orgName: "Green Earth NGO",
-            custodianName: "Rahul Sharma"
-          }]);
-        } else {
-          setEscalations(data);
-        }
+        setEscalations(data);
       } catch (err) {
         console.error("Failed to load ward escalations", err);
       } finally {

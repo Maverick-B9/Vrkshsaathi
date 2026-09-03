@@ -37,12 +37,7 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
   // Result
   const [createdTreeId, setCreatedTreeId] = useState<string | null>(null);
 
-  // Mock list of custodians for this org
-  const availableCustodians = [
-    { value: "", label: "-- Select Custodian --" },
-    { value: "cust-1", label: "Ravi K. (Phone: ...4321)" },
-    { value: "cust-2", label: "Sunita M. (Phone: ...9876)" },
-  ];
+
 
   // Compute Viability Score (0-100)
   const computeViability = () => {

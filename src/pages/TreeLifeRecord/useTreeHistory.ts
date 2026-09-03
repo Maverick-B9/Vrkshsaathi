@@ -25,56 +25,60 @@ export function useTreeHistory(treeId: string) {
       setError(null);
       
       try {
-        // In production, this directly invokes the getTreeHistory Cloud Function
-        // which securely aggregates public timeline data server-side without exposing
-        // global collection read permissions.
-        // const res = await httpsCallable(functions, "getTreeHistory")({ treeId });
+        const { doc, getDoc, collection, query, where, getDocs } = await import("firebase/firestore");
+        const treeRef = doc(db, "trees", treeId);
+        const treeSnap = await getDoc(treeRef);
         
-        console.log(`Mocking getTreeHistory Cloud Function for tree: ${treeId}`);
+        if (!treeSnap.exists()) {
+          throw new Error("Tree not found.");
+        }
         
-        const mockFn = async () => {
-          return new Promise<{ events: TimelineEvent[], treeInfo: any }>((resolve) => {
-            setTimeout(() => {
-              resolve({
-                treeInfo: {
-                  id: treeId,
-                  species: "Ficus religiosa",
-                  ward: "Ward 42"
-                },
-                events: [
-                  {
-                    id: "evt-1",
-                    type: "PLANTED",
-                    timestamp: new Date("2026-06-01T10:00:00Z").getTime(),
-                    title: "Planted in Ground",
-                    description: "Planted at Ward 42"
-                  },
-                  {
-                    id: "evt-2",
-                    type: "REGISTERED",
-                    timestamp: new Date("2026-06-01T11:00:00Z").getTime(),
-                    title: "Registered to System",
-                    description: "Custodian assigned: cust-123"
-                  },
-                  {
-                    id: "evt-3",
-                    type: "UPCOMING_CHECKPOINT",
-                    timestamp: new Date("2027-06-01T10:00:00Z").getTime(),
-                    title: "Year 1 Checkpoint Due",
-                    description: "Upcoming verification checkpoint.",
-                    isFuture: true
-                  }
-                ]
-              });
-            }, 800);
-          });
+        const treeData = treeSnap.data();
+        const info = {
+          id: treeId,
+          species: treeData.species || "Unknown",
+          ward: treeData.ward || "Unknown"
         };
-
-        const data = await mockFn();
-        setTreeInfo(data.treeInfo);
         
-        // Ensure chronological sorting even from the backend
-        const sortedEvents = data.events.sort((a, b) => a.timestamp - b.timestamp);
+        setTreeInfo(info);
+        
+        const generatedEvents: TimelineEvent[] = [];
+        
+        if (treeData.plantedDate) {
+          generatedEvents.push({
+            id: `planted-${treeId}`,
+            type: "PLANTED",
+            timestamp: new Date(treeData.plantedDate).getTime(),
+            title: "Planted in Ground",
+            description: `Planted at ${info.ward}`
+          });
+        }
+        
+        if (treeData.createdAt) {
+          generatedEvents.push({
+            id: `registered-${treeId}`,
+            type: "REGISTERED",
+            timestamp: new Date(treeData.createdAt).getTime(),
+            title: "Registered to System",
+            description: treeData.custodianId ? `Custodian assigned: ${treeData.custodianId}` : "No custodian assigned"
+          });
+        }
+        
+        const incQ = query(collection(db, "incidents"), where("treeId", "==", treeId));
+        const incSnap = await getDocs(incQ);
+        
+        incSnap.forEach(doc => {
+          const inc = doc.data();
+          generatedEvents.push({
+             id: `inc-${doc.id}`,
+             type: "REPORTED",
+             timestamp: new Date(inc.createdAt).getTime(),
+             title: `Incident: ${inc.category?.replace("_", " ") || "Issue"}`,
+             description: `Status: ${inc.status}`
+          });
+        });
+        
+        const sortedEvents = generatedEvents.sort((a, b) => a.timestamp - b.timestamp);
         setEvents(sortedEvents);
 
       } catch (err: any) {
