@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../contexts/AuthContext";
 import { EmptyState, Button, CountdownTimer, AIHealthBadge } from "../../components/ui";

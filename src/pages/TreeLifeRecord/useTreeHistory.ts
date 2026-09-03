@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { db } from "../../firebase/config";
 
 export type EventType = "PLANTED" | "REGISTERED" | "REPORTED" | "RESOLVED" | "VERIFIED" | "UPCOMING_CHECKPOINT" | "DIED";
 
