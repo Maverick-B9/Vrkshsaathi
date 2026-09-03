@@ -31,12 +31,17 @@ export default function LoginPage() {
     return "/custodian";
   }
 
-  async function handleEmailLogin(e: React.FormEvent) {
+  async function handleEmailLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const finalEmail = (formData.get("email") as string) || email;
+    const finalPassword = (formData.get("password") as string) || password;
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, finalEmail, finalPassword);
       navigate(dashboardFor(claims?.role));
     } catch {
       setError("Incorrect email or password. Please try again.");
@@ -131,6 +136,7 @@ export default function LoginPage() {
                 </label>
                 <input
                   id="email"
+                  name="email"
                   type="email"
                   required
                   autoComplete="email"
@@ -146,6 +152,7 @@ export default function LoginPage() {
                 </label>
                 <input
                   id="password"
+                  name="password"
                   type="password"
                   required
                   autoComplete="current-password"
