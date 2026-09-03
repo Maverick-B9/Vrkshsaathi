@@ -15,8 +15,6 @@ export default function LoginPage() {
   const verifierRef = useRef<RecaptchaVerifier | null>(null);
 
   const [method,   setMethod]   = useState<"email" | "phone">("email");
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
   const [phone,    setPhone]    = useState("");
   const [otp,      setOtp]      = useState("");
   const [step,     setStep]     = useState<"input" | "otp">("input");
@@ -37,8 +35,8 @@ export default function LoginPage() {
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const finalEmail = (formData.get("email") as string) || email;
-    const finalPassword = (formData.get("password") as string) || password;
+    const finalEmail = formData.get("email") as string;
+    const finalPassword = formData.get("password") as string;
 
     try {
       await signInWithEmailAndPassword(auth, finalEmail, finalPassword);
@@ -139,9 +137,7 @@ export default function LoginPage() {
                   name="email"
                   type="email"
                   required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username email"
                   className="w-full rounded-tag-inner border border-field-parchment-dark bg-field-parchment px-4 py-2.5 font-sans text-ink-bark placeholder:text-slate-bark focus:outline-none focus:ring-2 focus:ring-moss-canopy"
                   placeholder="you@example.com"
                 />
@@ -156,8 +152,6 @@ export default function LoginPage() {
                   type="password"
                   required
                   autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-tag-inner border border-field-parchment-dark bg-field-parchment px-4 py-2.5 font-sans text-ink-bark placeholder:text-slate-bark focus:outline-none focus:ring-2 focus:ring-moss-canopy"
                   placeholder="••••••••"
                 />
