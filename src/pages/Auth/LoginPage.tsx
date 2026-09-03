@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [loading,  setLoading]  = useState(false);
 
   function dashboardFor(role?: string) {
+    if (role === "super_admin") return "/super-admin";
     if (role === "registrar")  return "/registrar";
     if (role === "ward_admin") return "/ward";
     return "/custodian";
