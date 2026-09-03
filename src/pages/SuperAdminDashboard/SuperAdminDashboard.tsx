@@ -66,6 +66,9 @@ export default function SuperAdminDashboard() {
                 className="w-full border border-slate-bark/30 rounded px-3 py-2 text-ink-bark focus:ring-2 focus:ring-moss-canopy/50 outline-none"
                 placeholder="Paste Firebase UID here"
               />
+              <p className="text-xs text-slate-bark mt-1">
+                <strong>How to fetch:</strong> Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-moss-canopy underline">Firebase Console</a> → Authentication → Users tab, and copy the "User UID" for the desired user.
+              </p>
             </div>
 
             <div>
