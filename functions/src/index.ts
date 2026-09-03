@@ -768,69 +768,60 @@ If the audio is unclear or not about a tree incident, set category to "OTHER" an
 );
 
 // ─────────────────────────────────────────────────────────────────
-// 8. generatePatternInsights — scheduled weekly (Sunday midnight IST)
+// 8. generateInsightsForTimeframe (Helper) & Scheduled Triggers
 //    Aggregates incidents + mortality_records, calls Gemini for
-//    plain-language insights, writes to /insights/{weekId}.
-//    AI output surfaces as advisory callouts — never auto-actions.
+//    plain-language insights, writes to /insights/{timeId}.
 // ─────────────────────────────────────────────────────────────────
-export const generatePatternInsights = onSchedule(
-  {
-    schedule:  "0 0 * * 0", // Every Sunday at midnight
-    region:    REGION,
-    timeZone:  "Asia/Kolkata",
-    secrets:   ["GEMINI_API_KEY"],
-  },
-  async () => {
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      logger.warn("GEMINI_API_KEY not set — skipping pattern analysis");
-      return;
-    }
+async function generateInsightsForTimeframe(timeframe: 'daily' | 'weekly' | 'monthly' | 'yearly', daysToLookBack: number) {
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    logger.warn(`GEMINI_API_KEY not set — skipping ${timeframe} pattern analysis`);
+    return;
+  }
 
-    // Get week ID e.g. "2026-W35"
-    const now = new Date();
-    const weekNumber = getWeekNumber(now);
-    const weekId = `${now.getFullYear()}-W${String(weekNumber).padStart(2, "0")}`;
+  const now = new Date();
+  const timeId = `${timeframe}-${now.toISOString().split('T')[0]}`;
+  const msToLookBack = daysToLookBack * 24 * 60 * 60 * 1000;
+  const thresholdDate = new Date(now.getTime() - msToLookBack);
+  
+  const incidentsSnap = await db
+    .collection("incidents")
+    .where("reportedAt", ">=", admin.firestore.Timestamp.fromDate(thresholdDate))
+    .get();
 
-    // Aggregate last 30 days of incidents
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * MS_PER_HOUR);
-    const incidentsSnap = await db
-      .collection("incidents")
-      .where("reportedAt", ">=", admin.firestore.Timestamp.fromDate(thirtyDaysAgo))
-      .get();
+  const mortalitySnap = await db.collection("mortality_records").get();
+  const treesSnap = await db.collection("trees").get();
 
-    const mortalitySnap = await db.collection("mortality_records").get();
-    const treesSnap = await db.collection("trees").get();
+  const incidents = incidentsSnap.docs.map((d) => d.data());
+  const mortality = mortalitySnap.docs.map((d) => d.data());
+  const trees     = treesSnap.docs.map((d) => d.data());
 
-    // Build summary statistics
-    const incidents = incidentsSnap.docs.map((d) => d.data());
-    const mortality = mortalitySnap.docs.map((d) => d.data());
-    const trees     = treesSnap.docs.map((d) => d.data());
+  const summary = {
+    timeframe,
+    daysToLookBack,
+    totalTrees:              trees.length,
+    healthyCount:            trees.filter((t) => t.status === "HEALTHY").length,
+    deadCount:               trees.filter((t) => t.status === "DEAD").length,
+    incidentsInPeriod:       incidents.length,
+    pendingIncidents:        incidents.filter((i) => i.status === "PENDING").length,
+    escalatedIncidents:      incidents.filter((i) => i.status === "ESCALATED").length,
+    byCategory:              countBy(incidents, "category"),
+    byWard:                  countBy(trees, (t) => t.location?.ward ?? "Unknown"),
+    mortalityByWard:         countBy(
+      trees.filter((t) => t.status === "DEAD"),
+      (t) => t.location?.ward ?? "Unknown"
+    ),
+    mortalityByCause:        countBy(mortality, "causeTag"),
+  };
 
-    const summary = {
-      totalTrees:              trees.length,
-      healthyCount:            trees.filter((t) => t.status === "HEALTHY").length,
-      deadCount:               trees.filter((t) => t.status === "DEAD").length,
-      incidentsLast30d:        incidents.length,
-      pendingIncidents:        incidents.filter((i) => i.status === "PENDING").length,
-      escalatedIncidents:      incidents.filter((i) => i.status === "ESCALATED").length,
-      byCategory:              countBy(incidents, "category"),
-      byWard:                  countBy(trees, (t) => t.location?.ward ?? "Unknown"),
-      mortalityByWard:         countBy(
-        trees.filter((t) => t.status === "DEAD"),
-        (t) => t.location?.ward ?? "Unknown"
-      ),
-      mortalityByCause:        countBy(mortality, "causeTag"),
-    };
+  try {
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    try {
-      const { GoogleGenerativeAI } = await import("@google/generative-ai");
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      const result = await model.generateContent(`
+    const result = await model.generateContent(`
 You are an analyst reviewing tree survival data for a civic environmental programme in India.
-Here is the aggregated data for the last 30 days:
+Here is the aggregated data for the last ${daysToLookBack} days (${timeframe} report):
 
 ${JSON.stringify(summary, null, 2)}
 
@@ -842,43 +833,71 @@ Each insight should:
 
 Respond ONLY with a JSON array (no markdown):
 [
-  {
-    "type": "<MORTALITY_CLUSTER | RESPONSE_DEGRADATION | SPECIES_RISK>",
-    "plain": "<the full insight sentence>",
-    "ward": "<ward name or null>",
-    "species": "<species or null>",
-    "severity": "<INFO | WARNING>"
-  }
+{
+  "type": "<MORTALITY_CLUSTER | RESPONSE_DEGRADATION | SPECIES_RISK>",
+  "plain": "<the full insight sentence>",
+  "ward": "<ward name or null>",
+  "species": "<species or null>",
+  "severity": "<INFO | WARNING>"
+}
 ]
 `);
 
-      const text = result.response.text().trim();
-      let insights: unknown[];
-      try {
-        insights = JSON.parse(text);
-      } catch {
-        insights = [
-          {
-            type:     "MORTALITY_CLUSTER",
-            plain:    "Pattern analysis ran but could not parse structured output. Raw: " + text.slice(0, 200),
-            ward:     null,
-            species:  null,
-            severity: "INFO",
-          },
-        ];
-      }
-
-      await db.collection("insights").doc(weekId).set({
-        generatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        insights,
-        summaryStats: summary,
-      });
-
-      logger.info(`📊 Pattern insights generated for ${weekId}: ${insights.length} insight(s)`);
-    } catch (err) {
-      logger.error("generatePatternInsights error:", err);
+    const text = result.response.text().trim();
+    let parsed: any[];
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = [
+        {
+          type:     "MORTALITY_CLUSTER",
+          plain:    "Pattern analysis ran but could not parse structured output. Raw: " + text.slice(0, 200),
+          ward:     null,
+          species:  null,
+          severity: "INFO",
+        },
+      ];
     }
+
+    const formattedInsights = parsed.map((i: any, index: number) => ({
+      id: `${timeId}-${index}`,
+      title: i.type.replace(/_/g, " "),
+      description: i.plain,
+      type: i.type,
+      severity: i.severity === "WARNING" ? "HIGH" : (i.severity === "INFO" ? "LOW" : "MEDIUM")
+    }));
+
+    await db.collection("insights").doc(timeId).set({
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      timeframe: timeframe,
+      insights: formattedInsights,
+      summaryStats: summary,
+    });
+
+    logger.info(`📊 Pattern insights generated for ${timeId}: ${formattedInsights.length} insight(s)`);
+  } catch (err) {
+    logger.error("generateInsightsForTimeframe error:", err);
   }
+}
+
+export const generateDailyInsights = onSchedule(
+  { schedule: "0 0 * * *", region: REGION, timeZone: "Asia/Kolkata", secrets: ["GEMINI_API_KEY"] },
+  () => generateInsightsForTimeframe("daily", 1)
+);
+
+export const generateWeeklyInsights = onSchedule(
+  { schedule: "0 0 * * 0", region: REGION, timeZone: "Asia/Kolkata", secrets: ["GEMINI_API_KEY"] },
+  () => generateInsightsForTimeframe("weekly", 7)
+);
+
+export const generateMonthlyInsights = onSchedule(
+  { schedule: "0 0 1 * *", region: REGION, timeZone: "Asia/Kolkata", secrets: ["GEMINI_API_KEY"] },
+  () => generateInsightsForTimeframe("monthly", 30)
+);
+
+export const generateYearlyInsights = onSchedule(
+  { schedule: "0 0 1 1 *", region: REGION, timeZone: "Asia/Kolkata", secrets: ["GEMINI_API_KEY"] },
+  () => generateInsightsForTimeframe("yearly", 365)
 );
 
 // ─────────────────────────────────────────────────────────────────
