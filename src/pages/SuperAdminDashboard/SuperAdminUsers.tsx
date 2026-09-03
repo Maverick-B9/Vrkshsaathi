@@ -315,6 +315,7 @@ export function SuperAdminUsers() {
                 <tr>
                   <th className="px-6 py-4 font-semibold">Name</th>
                   <th className="px-6 py-4 font-semibold">Email</th>
+                  <th className="px-6 py-4 font-semibold">Phone</th>
                   <th className="px-6 py-4 font-semibold">Role</th>
                   <th className="px-6 py-4 font-semibold">Extra Info</th>
                   <th className="px-6 py-4 font-semibold text-right">Actions</th>
@@ -323,13 +324,13 @@ export function SuperAdminUsers() {
               <tbody className="divide-y divide-field-parchment-dark text-ink-bark">
                 {loadingUsers ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-bark">
+                    <td colSpan={6} className="px-6 py-8 text-center text-slate-bark">
                       Loading users...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-bark">
+                    <td colSpan={6} className="px-6 py-8 text-center text-slate-bark">
                       No users found.
                     </td>
                   </tr>
@@ -340,6 +341,7 @@ export function SuperAdminUsers() {
                       <tr key={user.uid} className="hover:bg-moss-canopy/5 transition-colors">
                         <td className="px-6 py-4 font-medium">{user.displayName || "—"}</td>
                         <td className="px-6 py-4">{user.email || "—"}</td>
+                        <td className="px-6 py-4">{user.phoneNumber || "—"}</td>
                         <td className="px-6 py-4">
                           <span className="bg-moss-canopy/10 text-moss-canopy px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider">
                             {user.role}
