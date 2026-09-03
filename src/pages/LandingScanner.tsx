@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useEffect, useCallback } from "react";
-import jsQR from "jsqr";
+import { useState, useRef, useEffect } from "react";
 
 // ─── Falling Leaf ─────────────────────────────────────────────────
 interface Leaf {
@@ -34,51 +33,59 @@ function useLeaves(count = 14) {
   return leaves;
 }
 
-// ─── Core jsQR scanner hook ───────────────────────────────────────
-function useJsQrScanner(onDetected: (value: string) => void) {
+// ─── Detect whether native BarcodeDetector is available ──────────
+const hasBarcodeDetector =
+  typeof window !== "undefined" && "BarcodeDetector" in window;
+
+// ─── Decode a static image file (gallery upload) ─────────────────
+async function decodeImageFile(file: File): Promise<string | null> {
+  if (hasBarcodeDetector) {
+    try {
+      // @ts-ignore — BarcodeDetector is not yet in TS lib
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const bitmap = await createImageBitmap(file);
+      const results = await detector.detect(bitmap);
+      bitmap.close();
+      if (results.length > 0) return results[0].rawValue;
+    } catch {/* fall through to jsQR */ }
+  }
+
+  // jsQR fallback (iOS Safari / Firefox)
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        // Dynamic import so jsQR is only loaded when BarcodeDetector isn't available
+        const { default: jsQR } = await import("jsqr");
+        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+        resolve(code?.data ?? null);
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ─── Camera scanner hook ─────────────────────────────────────────
+function useCameraScanner(onDetected: (value: string) => void) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number>(0);
-  const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(true);
-  // Stable ref so the tick loop never needs to re-mount when parent re-renders
+  const streamRef = useRef<MediaStream | null>(null);
   const callbackRef = useRef(onDetected);
   callbackRef.current = onDetected;
 
   useEffect(() => {
     activeRef.current = true;
-
-    function tick() {
-      if (!activeRef.current) return;
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      if (!video || !canvas) { rafRef.current = requestAnimationFrame(tick); return; }
-      if (video.readyState < video.HAVE_ENOUGH_DATA || video.videoWidth === 0) {
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
-
-      canvas.width  = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) { rafRef.current = requestAnimationFrame(tick); return; }
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-      // "attemptBoth" handles both light-on-dark and dark-on-light QR codes
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "attemptBoth",
-      });
-
-      if (code?.data) {
-        callbackRef.current(code.data);
-        return; // stop the loop — navigation will unmount this component
-      }
-
-      rafRef.current = requestAnimationFrame(tick);
-    }
 
     navigator.mediaDevices
       .getUserMedia({
@@ -92,105 +99,136 @@ function useJsQrScanner(onDetected: (value: string) => void) {
       .then((stream) => {
         streamRef.current = stream;
         const video = videoRef.current;
-        if (!video || !activeRef.current) { stream.getTracks().forEach(t => t.stop()); return; }
+        if (!video || !activeRef.current) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         video.srcObject = stream;
         video.setAttribute("playsinline", "true");
         video.muted = true;
-        video.play()
-          .then(() => { rafRef.current = requestAnimationFrame(tick); })
-          .catch(console.error);
+        video.play().then(startScanning).catch(console.error);
       })
-      .catch((err) => {
-        console.error("Camera access denied:", err);
-      });
+      .catch((err) => console.error("Camera denied:", err));
+
+    async function startScanning() {
+      if (!activeRef.current) return;
+
+      const video = videoRef.current;
+      if (!video || video.videoWidth === 0) {
+        setTimeout(startScanning, 200);
+        return;
+      }
+
+      if (hasBarcodeDetector) {
+        // ── Native BarcodeDetector path (Chrome Android / Chrome Desktop) ──
+        // @ts-ignore
+        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+
+        const detectLoop = async () => {
+          if (!activeRef.current) return;
+          try {
+            const results = await detector.detect(video);
+            if (results.length > 0) {
+              callbackRef.current(results[0].rawValue);
+              return;
+            }
+          } catch { /* ignore frame errors */ }
+          setTimeout(detectLoop, 150);
+        };
+        detectLoop();
+      } else {
+        // ── jsQR fallback path (iOS Safari / Firefox) ─────────────────────
+        const canvas = document.createElement("canvas");
+        const { default: jsQR } = await import("jsqr");
+
+        const tickLoop = () => {
+          if (!activeRef.current || !video) return;
+          if (video.readyState >= video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+            canvas.width  = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "attemptBoth",
+              });
+              if (code?.data) {
+                callbackRef.current(code.data);
+                return;
+              }
+            }
+          }
+          requestAnimationFrame(tickLoop);
+        };
+        requestAnimationFrame(tickLoop);
+      }
+    }
 
     return () => {
       activeRef.current = false;
-      cancelAnimationFrame(rafRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, []); // ← empty deps: runs once only, no camera restarts
+  }, []); // runs once only
 
-  return { videoRef, canvasRef };
+  return videoRef;
 }
-
 
 // ─── Main Component ───────────────────────────────────────────────
 export default function LandingScanner() {
   const navigate = useNavigate();
   const [hasScanned, setHasScanned] = useState(false);
   const [scanError, setScanError] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const leaves = useLeaves(14);
 
-  const routeQR = useCallback(
-    (raw: string) => {
-      if (!raw) return false;
-      if (raw.includes("/tree/")) {
-        const treeId = raw.split("/tree/")[1];
-        navigate(`/tree/${treeId}`);
-        return true;
-      }
-      if (raw.startsWith("http")) {
-        window.location.href = raw;
-        return true;
-      }
-      return false;
-    },
-    [navigate]
-  );
+  const routeQR = (raw: string): boolean => {
+    if (!raw) return false;
+    // VrkshSaathi tree URL — navigate internally
+    if (raw.includes("/tree/")) {
+      const treeId = raw.split("/tree/")[1]?.split("?")[0];
+      if (treeId) { navigate(`/tree/${treeId}`); return true; }
+    }
+    // Any other URL — navigate externally
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      window.location.href = raw;
+      return true;
+    }
+    return false;
+  };
 
-  const handleDetected = useCallback(
-    (raw: string) => {
-      if (hasScanned) return;
-      setHasScanned(true);
-      const ok = routeQR(raw);
-      if (!ok) {
-        setScanError(true);
-        setTimeout(() => {
-          setHasScanned(false);
-          setScanError(false);
-        }, 2500);
-      }
-    },
-    [hasScanned, routeQR]
-  );
+  const handleDetected = (raw: string) => {
+    if (hasScanned) return;
+    setHasScanned(true);
+    const ok = routeQR(raw);
+    if (!ok) {
+      setScanError(true);
+      setTimeout(() => { setHasScanned(false); setScanError(false); }, 2500);
+    }
+  };
 
-  const { videoRef, canvasRef } = useJsQrScanner(handleDetected);
+  const videoRef = useCameraScanner(handleDetected);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, img.width, img.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code) {
-            handleDetected(code.data);
-          } else {
-            alert("No QR code found in this image. Please try another photo.");
-          }
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
     if (fileInputRef.current) fileInputRef.current.value = "";
+
+    setUploading(true);
+    const result = await decodeImageFile(file);
+    setUploading(false);
+
+    if (result) {
+      handleDetected(result);
+    } else {
+      alert("No QR code found in this image. Try a clearer photo.");
+    }
   };
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden flex flex-col items-center justify-between bg-[#f4f8f0]">
-
-      {/* ── Hidden canvas used by jsQR for frame analysis ─────────── */}
-      <canvas ref={canvasRef} className="hidden" />
 
       {/* ── Camera Video Background ──────────────────────────────── */}
       <div className="absolute inset-0 z-0">
@@ -200,6 +238,7 @@ export default function LandingScanner() {
           playsInline
           className="w-full h-full object-cover"
           style={{ opacity: 0.4, filter: "saturate(0.55)" }}
+          onError={() => setCameraError(true)}
         />
         {/* Parchment wash */}
         <div className="absolute inset-0 bg-[#f4f8f0]/60 pointer-events-none" />
@@ -211,23 +250,14 @@ export default function LandingScanner() {
           <motion.span
             key={leaf.id}
             className="absolute select-none"
-            style={{
-              left: `${leaf.x}%`,
-              top: "-60px",
-              fontSize: leaf.size,
-            }}
+            style={{ left: `${leaf.x}%`, top: "-60px", fontSize: leaf.size }}
             animate={{
               y: ["0vh", "110vh"],
               rotate: [leaf.rotation, leaf.rotation + 360],
               x: [0, Math.sin(leaf.id) * 60],
               opacity: [0, 1, 1, 0],
             }}
-            transition={{
-              duration: leaf.duration,
-              delay: leaf.delay,
-              repeat: Infinity,
-              ease: "linear",
-            }}
+            transition={{ duration: leaf.duration, delay: leaf.delay, repeat: Infinity, ease: "linear" }}
           >
             {leaf.emoji}
           </motion.span>
@@ -239,22 +269,22 @@ export default function LandingScanner() {
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="relative z-20 w-full flex flex-col items-center pt-16 pb-4 px-6 pointer-events-none"
+        className="relative z-20 w-full flex flex-col items-center pt-14 pb-4 px-6 pointer-events-none"
       >
         <motion.div
           animate={{ scale: [1, 1.06, 1] }}
           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          className="w-20 h-20 rounded-full border-4 border-moss-canopy bg-white shadow-[0_6px_30px_rgba(75,107,58,0.3)] overflow-hidden mb-5"
+          className="w-20 h-20 rounded-full border-4 border-moss-canopy bg-white shadow-[0_6px_30px_rgba(75,107,58,0.3)] overflow-hidden mb-4"
         >
           <img src="/logo.jpg" alt="VrkshSaathi" className="w-full h-full object-cover" />
         </motion.div>
-
         <h1 className="font-display text-4xl text-moss-canopy tracking-widest uppercase drop-shadow-sm">
           VrkshSaathi
         </h1>
-
-        <p className="font-sans text-sm text-slate-bark mt-2 text-center max-w-[280px] leading-relaxed">
-          Align the QR tag within the frame to view a tree's life record.
+        <p className="font-sans text-sm text-slate-bark mt-1 text-center max-w-[280px] leading-relaxed">
+          {cameraError
+            ? "Camera unavailable — upload a QR photo from your gallery below."
+            : "Align the QR tag within the frame to view a tree's life record."}
         </p>
       </motion.div>
 
@@ -263,17 +293,15 @@ export default function LandingScanner() {
         initial={{ scale: 0.88, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.9, delay: 0.15 }}
-        className="relative z-20 flex flex-col items-center gap-6 px-6 mb-auto mt-auto pointer-events-none"
+        className="relative z-20 flex flex-col items-center gap-5 px-6 mb-auto mt-auto pointer-events-none"
       >
-        {/* Frame */}
         <div className="relative w-[270px] aspect-square">
           {/* Scanning line */}
           <motion.div
-            className="absolute left-0 right-0 h-[3px] bg-moss-canopy shadow-[0_0_14px_rgba(75,107,58,0.9)] z-20"
-            animate={{ top: ["2%", "97%", "2%"] }}
-            transition={{ duration: 2.4, ease: "linear", repeat: Infinity }}
+            className="absolute left-[4px] right-[4px] h-[3px] bg-moss-canopy shadow-[0_0_14px_rgba(75,107,58,0.9)] z-20"
+            animate={{ top: ["4%", "96%", "4%"] }}
+            transition={{ duration: 2.2, ease: "linear", repeat: Infinity }}
           />
-
           {/* Corner brackets */}
           {[
             "top-0 left-0 border-t-4 border-l-4 rounded-tl-[28px]",
@@ -283,12 +311,10 @@ export default function LandingScanner() {
           ].map((cls, i) => (
             <div key={i} className={`absolute w-14 h-14 border-moss-canopy ${cls} z-10`} />
           ))}
-
-          {/* Glass inner */}
-          <div className="absolute inset-0 rounded-[28px] overflow-hidden bg-white/10 backdrop-blur-[1px] ring-1 ring-moss-canopy/20" />
+          <div className="absolute inset-0 rounded-[28px] bg-white/5 ring-1 ring-moss-canopy/20" />
         </div>
 
-        {/* Tagline pill */}
+        {/* Status pill */}
         <AnimatePresence mode="wait">
           {!hasScanned ? (
             <motion.div
@@ -327,14 +353,13 @@ export default function LandingScanner() {
         </AnimatePresence>
       </motion.div>
 
-      {/* ── Bottom Action Area ───────────────────────────────────── */}
+      {/* ── Bottom Actions ───────────────────────────────────────── */}
       <motion.div
         initial={{ y: 50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8, delay: 0.35 }}
         className="relative z-20 w-full px-8 pb-10 pt-6 bg-gradient-to-t from-[#f4f8f0]/95 via-[#f4f8f0]/80 to-transparent flex flex-col items-center gap-4"
       >
-        {/* Gallery upload */}
         <input
           type="file"
           accept="image/*"
@@ -344,10 +369,14 @@ export default function LandingScanner() {
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="w-full max-w-xs bg-white border border-moss-canopy/40 hover:bg-moss-canopy/5 text-moss-canopy font-sans font-medium text-sm py-3 px-6 rounded-full flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95"
+          disabled={uploading}
+          className="w-full max-w-xs bg-white border border-moss-canopy/40 hover:bg-moss-canopy/5 text-moss-canopy font-sans font-medium text-sm py-3 px-6 rounded-full flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95 disabled:opacity-60"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-          Upload from Gallery
+          {uploading ? (
+            <><div className="w-4 h-4 border-2 border-moss-canopy border-t-transparent rounded-full animate-spin" /> Scanning image…</>
+          ) : (
+            <><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> Upload from Gallery</>
+          )}
         </button>
 
         <div className="w-full max-w-xs flex items-center gap-3">
