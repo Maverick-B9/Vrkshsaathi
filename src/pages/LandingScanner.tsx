@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Scanner } from "@yudiel/react-qr-scanner";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import jsQR from "jsqr";
 
 // ─── Falling Leaf ─────────────────────────────────────────────────
@@ -35,6 +34,75 @@ function useLeaves(count = 14) {
   return leaves;
 }
 
+// ─── Core jsQR scanner hook ───────────────────────────────────────
+function useJsQrScanner(onDetected: (value: string) => void) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
+  const streamRef = useRef<MediaStream | null>(null);
+  const activeRef = useRef(true);
+
+  const tick = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !activeRef.current) return;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: "dontInvert",
+    });
+
+    if (code?.data) {
+      onDetected(code.data);
+      return; // stop ticking once detected
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, [onDetected]);
+
+  useEffect(() => {
+    activeRef.current = true;
+
+    navigator.mediaDevices
+      .getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      })
+      .then((stream) => {
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        video.setAttribute("playsinline", "true"); // Required for iOS Safari
+        video.play().then(() => {
+          rafRef.current = requestAnimationFrame(tick);
+        });
+      })
+      .catch((err) => {
+        console.error("Camera access error:", err);
+      });
+
+    return () => {
+      activeRef.current = false;
+      cancelAnimationFrame(rafRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, [tick]);
+
+  return { videoRef, canvasRef };
+}
+
 // ─── Main Component ───────────────────────────────────────────────
 export default function LandingScanner() {
   const navigate = useNavigate();
@@ -43,31 +111,40 @@ export default function LandingScanner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const leaves = useLeaves(14);
 
-  const routeQR = (raw: string) => {
-    if (!raw) return false;
-    if (raw.includes("/tree/")) {
-      const treeId = raw.split("/tree/")[1];
-      navigate(`/tree/${treeId}`);
-      return true;
-    }
-    if (raw.startsWith("http")) {
-      window.location.href = raw;
-      return true;
-    }
-    return false;
-  };
+  const routeQR = useCallback(
+    (raw: string) => {
+      if (!raw) return false;
+      if (raw.includes("/tree/")) {
+        const treeId = raw.split("/tree/")[1];
+        navigate(`/tree/${treeId}`);
+        return true;
+      }
+      if (raw.startsWith("http")) {
+        window.location.href = raw;
+        return true;
+      }
+      return false;
+    },
+    [navigate]
+  );
 
-  const handleScan = (detectedCodes: any) => {
-    if (detectedCodes?.length > 0 && !hasScanned) {
-      const raw = detectedCodes[0].rawValue;
+  const handleDetected = useCallback(
+    (raw: string) => {
+      if (hasScanned) return;
       setHasScanned(true);
       const ok = routeQR(raw);
       if (!ok) {
         setScanError(true);
-        setTimeout(() => { setHasScanned(false); setScanError(false); }, 2500);
+        setTimeout(() => {
+          setHasScanned(false);
+          setScanError(false);
+        }, 2500);
       }
-    }
-  };
+    },
+    [hasScanned, routeQR]
+  );
+
+  const { videoRef, canvasRef } = useJsQrScanner(handleDetected);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -85,12 +162,7 @@ export default function LandingScanner() {
           const imageData = ctx.getImageData(0, 0, img.width, img.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
-            setHasScanned(true);
-            const ok = routeQR(code.data);
-            if (!ok) {
-              setScanError(true);
-              setTimeout(() => { setHasScanned(false); setScanError(false); }, 2500);
-            }
+            handleDetected(code.data);
           } else {
             alert("No QR code found in this image. Please try another photo.");
           }
@@ -104,6 +176,22 @@ export default function LandingScanner() {
 
   return (
     <div className="relative min-h-[100dvh] overflow-hidden flex flex-col items-center justify-between bg-[#f4f8f0]">
+
+      {/* ── Hidden canvas used by jsQR for frame analysis ─────────── */}
+      <canvas ref={canvasRef} className="hidden" />
+
+      {/* ── Camera Video Background ──────────────────────────────── */}
+      <div className="absolute inset-0 z-0">
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          className="w-full h-full object-cover"
+          style={{ opacity: 0.4, filter: "saturate(0.55)" }}
+        />
+        {/* Parchment wash */}
+        <div className="absolute inset-0 bg-[#f4f8f0]/60 pointer-events-none" />
+      </div>
 
       {/* ── Falling Leaves ──────────────────────────────────────── */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden z-10">
@@ -132,19 +220,6 @@ export default function LandingScanner() {
             {leaf.emoji}
           </motion.span>
         ))}
-      </div>
-
-      {/* ── Camera Background ────────────────────────────────────── */}
-      <div className="absolute inset-0 z-0">
-        <Scanner
-          onScan={handleScan}
-          styles={{
-            container: { height: "100%", width: "100%" },
-            video: { objectFit: "cover", opacity: 0.35, filter: "saturate(0.6)" },
-          }}
-        />
-        {/* Light parchment wash over camera */}
-        <div className="absolute inset-0 bg-[#f4f8f0]/65 pointer-events-none" />
       </div>
 
       {/* ── Top Header ───────────────────────────────────────────── */}
@@ -211,7 +286,6 @@ export default function LandingScanner() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="flex items-center gap-2"
             >
-              {/* decorative leaves */}
               <span className="text-2xl opacity-80">🌿</span>
               <span className="bg-moss-canopy text-white font-display text-lg tracking-[0.22em] uppercase px-7 py-2.5 rounded-full shadow-[0_6px_24px_rgba(75,107,58,0.35)]">
                 Scan to Save
@@ -223,7 +297,7 @@ export default function LandingScanner() {
               key="error"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-laterite-clay text-white font-sans text-sm font-semibold px-7 py-2.5 rounded-full shadow-lg"
+              className="bg-red-500 text-white font-sans text-sm font-semibold px-7 py-2.5 rounded-full shadow-lg"
             >
               ✗ Invalid QR — try again
             </motion.div>
