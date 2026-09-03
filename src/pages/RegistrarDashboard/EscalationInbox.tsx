@@ -3,38 +3,44 @@ import { db } from "../../firebase/config";
 import { useAuth } from "../../contexts/AuthContext";
 import { EmptyState, Button, CountdownTimer, AIHealthBadge } from "../../components/ui";
 
-// Mock data for escalations
-const mockEscalations = [
-  {
-    id: "esc-1",
-    treeId: "tree-abc",
-    custodianId: "cust-1",
-    custodianName: "Ravi K.",
-    incidentCategory: "WATER_NEEDED",
-    category: "WATER_NEEDED",
-    breachedAt: "2026-08-28T10:00:00Z",
-    status: "OPEN",
-    aiHealthSignal: "CRITICAL"
-  },
-  {
-    id: "esc-2",
-    treeId: "tree-xyz",
-    custodianId: "cust-2",
-    custodianName: "Sunita M.",
-    incidentCategory: "PHYSICAL_DAMAGE",
-    category: "PHYSICAL_DAMAGE",
-    breachedAt: "2026-08-29T14:30:00Z",
-    status: "OPEN"
-  }
-];
-
 export function EscalationInbox() {
-  const [escalations, setEscalations] = useState(mockEscalations);
+  const [escalations, setEscalations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { claims } = useAuth();
+
+  useEffect(() => {
+    async function fetchEscalations() {
+      if (!claims?.orgId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const { collection, query, where, getDocs } = await import("firebase/firestore");
+        const q = query(
+          collection(db, "incidents"),
+          where("assignedTo", "==", "REGISTRAR"),
+          where("orgId", "==", claims.orgId)
+        );
+        const snap = await getDocs(q);
+        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setEscalations(data);
+      } catch (err) {
+        console.error("Failed to load registrar escalations", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchEscalations();
+  }, [claims]);
 
   const resolveEscalation = (id: string) => {
     // In real app: Update the escalation doc status to RESOLVED
     setEscalations(prev => prev.filter(e => e.id !== id));
   };
+
+  if (loading) {
+    return <div className="p-12 text-center text-slate-bark animate-pulse">Loading Escalation Inbox...</div>;
+  }
 
   return (
     <div className="flex flex-col gap-6 animate-fade-up">

@@ -8,6 +8,7 @@ interface AdminUser {
   uid: string;
   email: string;
   displayName?: string;
+  phoneNumber?: string;
   role: string;
   orgId?: string;
   custodianId?: string;
@@ -16,6 +17,7 @@ interface AdminUser {
 export function SuperAdminUsers() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"super_admin" | "ward_admin" | "registrar" | "custodian">("ward_admin");
   const [orgId, setOrgId] = useState("");
@@ -30,6 +32,7 @@ export function SuperAdminUsers() {
   // Edit Modal State
   const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
   const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
@@ -59,6 +62,7 @@ export function SuperAdminUsers() {
       const adminCreateUser = httpsCallable(functions, "adminCreateUser");
       
       const payload: any = { name, email, password, role };
+      if (phone) payload.phoneNumber = phone.startsWith("+") ? phone : `+91${phone}`;
       if (role === "registrar") payload.orgId = orgId;
       if (role === "custodian") payload.custodianId = custodianId;
 
@@ -67,6 +71,7 @@ export function SuperAdminUsers() {
       
       setName("");
       setEmail("");
+      setPhone("");
       setPassword("");
       
       fetchUsers();
@@ -94,6 +99,7 @@ export function SuperAdminUsers() {
   const openEditModal = (user: AdminUser) => {
     setEditTarget(user);
     setEditName(user.displayName || "");
+    setEditPhone(user.phoneNumber || "");
     setEditPassword("");
   };
 
@@ -107,12 +113,19 @@ export function SuperAdminUsers() {
       const payload: any = { targetUid: editTarget.uid };
       if (editName && editName !== editTarget.displayName) payload.displayName = editName;
       if (editPassword) payload.password = editPassword;
+      if (editPhone !== editTarget.phoneNumber) {
+        payload.phoneNumber = editPhone ? (editPhone.startsWith("+") ? editPhone : `+91${editPhone}`) : null; // Send null to remove phone
+      }
 
       await adminUpdateUser(payload);
       
       setUsers((prev) => prev.map((u) => {
         if (u.uid === editTarget.uid) {
-          return { ...u, displayName: editName || u.displayName };
+          return { 
+            ...u, 
+            displayName: editName || u.displayName,
+            phoneNumber: editPhone || u.phoneNumber
+          };
         }
         return u;
       }));
@@ -145,6 +158,16 @@ export function SuperAdminUsers() {
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
                   className="w-full border border-slate-bark/30 rounded px-3 py-2 text-ink-bark focus:ring-2 focus:ring-moss-canopy/50 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-ink-bark mb-1">Phone Number (Optional)</label>
+                <input 
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full border border-slate-bark/30 rounded px-3 py-2 text-ink-bark focus:ring-2 focus:ring-moss-canopy/50 outline-none"
+                  placeholder="+91 98765 43210"
                 />
               </div>
               <div>
@@ -197,6 +220,17 @@ export function SuperAdminUsers() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full border border-slate-bark/30 rounded px-3 py-2 text-ink-bark focus:ring-2 focus:ring-moss-canopy/50 outline-none"
                   placeholder="e.g. ramesh@example.com"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-ink-bark mb-1">Phone Number (Optional)</label>
+                <input 
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full border border-slate-bark/30 rounded px-3 py-2 text-ink-bark focus:ring-2 focus:ring-moss-canopy/50 outline-none"
+                  placeholder="+91 98765 43210"
                 />
               </div>
 

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.adminUpdateUser = exports.adminDeleteUser = exports.adminListUsers = exports.adminCreateUser = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
+exports.generatePatternInsights = exports.parseVoiceNote = exports.analyzeIncidentPhoto = exports.generateQRCode = exports.confirmMortality = exports.escalationScheduler = exports.verifyCustodianPhone = exports.registrarListCustodians = exports.adminUpdateUser = exports.adminDeleteUser = exports.adminListUsers = exports.adminCreateUser = exports.setUserClaims = exports.onTreeCreate = exports.DEADLINE_HOURS = void 0;
 /**
  * TREE-LIFE — Cloud Functions
  *
@@ -152,7 +152,7 @@ exports.adminCreateUser = (0, https_1.onCall)({ region: REGION }, async (request
     if (!callerClaims || (callerClaims.role !== "super_admin" && callerClaims.role !== "ward_admin")) {
         throw new https_1.HttpsError("permission-denied", "Insufficient permissions to create users.");
     }
-    const { email, password, name, role, orgId, custodianId } = request.data;
+    const { email, password, name, phoneNumber, role, orgId, custodianId } = request.data;
     if (!email || !password || !role) {
         throw new https_1.HttpsError("invalid-argument", "email, password, and role are required.");
     }
@@ -162,6 +162,7 @@ exports.adminCreateUser = (0, https_1.onCall)({ region: REGION }, async (request
             email,
             password,
             displayName: name,
+            ...(phoneNumber ? { phoneNumber } : {}),
         });
         // 2. Set claims
         const claims = { role };
@@ -193,6 +194,7 @@ exports.adminListUsers = (0, https_1.onCall)({ region: REGION }, async (request)
             uid: record.uid,
             email: record.email,
             displayName: record.displayName,
+            phoneNumber: record.phoneNumber,
             role: record.customClaims?.role || "none",
             orgId: record.customClaims?.orgId,
             custodianId: record.customClaims?.custodianId,
@@ -242,12 +244,12 @@ exports.adminUpdateUser = (0, https_1.onCall)({ region: REGION }, async (request
     if (!callerClaims || callerClaims.role !== "super_admin") {
         throw new https_1.HttpsError("permission-denied", "Insufficient permissions to update users.");
     }
-    const { targetUid, password, displayName } = request.data;
+    const { targetUid, password, displayName, phoneNumber } = request.data;
     if (!targetUid) {
         throw new https_1.HttpsError("invalid-argument", "targetUid is required.");
     }
-    if (!password && !displayName) {
-        throw new https_1.HttpsError("invalid-argument", "Must provide password or displayName to update.");
+    if (!password && !displayName && phoneNumber === undefined) {
+        throw new https_1.HttpsError("invalid-argument", "Must provide password, displayName, or phoneNumber to update.");
     }
     try {
         const updatePayload = {};
@@ -255,6 +257,8 @@ exports.adminUpdateUser = (0, https_1.onCall)({ region: REGION }, async (request
             updatePayload.password = password;
         if (displayName)
             updatePayload.displayName = displayName;
+        if (phoneNumber !== undefined)
+            updatePayload.phoneNumber = phoneNumber;
         await admin.auth().updateUser(targetUid, updatePayload);
         v2_1.logger.info(`✅ Admin updated user ${targetUid}`);
         return { success: true };
@@ -265,7 +269,36 @@ exports.adminUpdateUser = (0, https_1.onCall)({ region: REGION }, async (request
     }
 });
 // ─────────────────────────────────────────────────────────────────
-// 2e. verifyCustodianPhone — callable by a user to link their phone 
+// 2e. registrarListCustodians — callable by registrar
+//     Lists custodians belonging to the registrar's organization.
+// ─────────────────────────────────────────────────────────────────
+exports.registrarListCustodians = (0, https_1.onCall)({ region: REGION }, async (request) => {
+    const callerClaims = request.auth?.token;
+    if (!callerClaims || callerClaims.role !== "registrar" || !callerClaims.orgId) {
+        throw new https_1.HttpsError("permission-denied", "Insufficient permissions. Only registrars can list their custodians.");
+    }
+    try {
+        // List users - in production with many users, it would be better to keep a shadow collection
+        // in Firestore, but since users are primarily stored in Auth for this MVP, we fetch from there.
+        const listUsersResult = await admin.auth().listUsers(1000);
+        const custodians = listUsersResult.users
+            .filter(u => u.customClaims?.role === "custodian" && u.customClaims?.orgId === callerClaims.orgId)
+            .map((record) => ({
+            uid: record.uid,
+            email: record.email,
+            displayName: record.displayName,
+            phoneNumber: record.phoneNumber,
+            custodianId: record.customClaims?.custodianId,
+        }));
+        return { success: true, custodians };
+    }
+    catch (error) {
+        v2_1.logger.error("Error listing custodians:", error);
+        throw new https_1.HttpsError("internal", "Failed to list custodians.");
+    }
+});
+// ─────────────────────────────────────────────────────────────────
+// 2f. verifyCustodianPhone — callable by a user to link their phone 
 //     number to an existing custodian record and get their claims.
 // ─────────────────────────────────────────────────────────────────
 exports.verifyCustodianPhone = (0, https_1.onCall)({ region: REGION }, async (request) => {

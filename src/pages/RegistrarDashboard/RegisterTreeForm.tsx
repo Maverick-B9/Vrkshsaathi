@@ -37,6 +37,35 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
   // Result
   const [createdTreeId, setCreatedTreeId] = useState<string | null>(null);
 
+  const [custodians, setCustodians] = useState<{value: string, label: string}[]>([]);
+  const [loadingCustodians, setLoadingCustodians] = useState(true);
+
+  useEffect(() => {
+    async function fetchCustodians() {
+      try {
+        const { httpsCallable } = await import("firebase/functions");
+        const { functions } = await import("../../firebase/config");
+        const getCusts = httpsCallable(functions, "registrarListCustodians");
+        const res = await getCusts();
+        const data = (res.data as any).custodians || [];
+        const options = [
+          { value: "", label: "-- Select Custodian --" },
+          ...data.map((c: any) => ({
+            value: c.uid,
+            label: `${c.displayName || 'Unknown'} (${c.phoneNumber || 'No Phone'})`
+          }))
+        ];
+        setCustodians(options);
+      } catch (err) {
+        console.error("Failed to fetch custodians", err);
+        setCustodians([{ value: "", label: "-- Select Custodian (Error loading) --" }]);
+      } finally {
+        setLoadingCustodians(false);
+      }
+    }
+    fetchCustodians();
+  }, []);
+
 
 
   // Compute Viability Score (0-100)
@@ -248,10 +277,10 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
             Every tree must have an assigned Custodian. This is a strict requirement.
           </p>
           <Select 
-            label="Assign Custodian"
+            label={loadingCustodians ? "Loading Custodians..." : "Assign Custodian"}
             value={custodianId}
             onChange={(e) => setCustodianId(e.target.value)}
-            options={availableCustodians}
+            options={custodians}
           />
           <div className="mt-2 text-right">
             <button className="text-ui-focus-ring font-sans text-sm font-medium hover:underline">
