@@ -63,7 +63,7 @@ export function SuperAdminUsers() {
       
       const payload: any = { name, email, password, role };
       if (phone) payload.phoneNumber = phone.startsWith("+") ? phone : `+91${phone}`;
-      if (role === "registrar") payload.orgId = orgId;
+      if (role === "registrar" || role === "custodian") payload.orgId = orgId;
       if (role === "custodian") payload.custodianId = custodianId;
 
       await adminCreateUser(payload);
@@ -262,8 +262,8 @@ export function SuperAdminUsers() {
               </div>
             </div>
 
-            {role === "registrar" && (
-              <div className="animate-fade-up">
+            {(role === "registrar" || role === "custodian") && (
+              <div className="bg-field-parchment/50 p-4 rounded border border-field-parchment-dark mt-2">
                 <label className="block text-sm font-medium text-ink-bark mb-1">Organization ID</label>
                 <input 
                   type="text"
@@ -271,24 +271,24 @@ export function SuperAdminUsers() {
                   value={orgId}
                   onChange={(e) => setOrgId(e.target.value)}
                   className="w-full border border-slate-bark/30 rounded px-3 py-2 text-ink-bark focus:ring-2 focus:ring-moss-canopy/50 outline-none"
-                  placeholder="e.g. org-123"
+                  placeholder="e.g. ORG-GREEN-BLR"
                 />
-                <p className="text-xs text-slate-bark mt-1">Required so the registrar can manage this organization's trees.</p>
+                <p className="text-xs text-slate-bark mt-1">
+                  Required. Groups {role}s under a specific organization for assigning trees.
+                </p>
               </div>
             )}
 
             {role === "custodian" && (
-              <div className="animate-fade-up">
-                <label className="block text-sm font-medium text-ink-bark mb-1">Custodian Document ID</label>
+              <div className="bg-field-parchment/50 p-4 rounded border border-field-parchment-dark mt-2">
+                <label className="block text-sm font-medium text-ink-bark mb-1">Custodian Reference ID (Optional)</label>
                 <input 
                   type="text"
-                  required
                   value={custodianId}
                   onChange={(e) => setCustodianId(e.target.value)}
                   className="w-full border border-slate-bark/30 rounded px-3 py-2 text-ink-bark focus:ring-2 focus:ring-moss-canopy/50 outline-none"
-                  placeholder="e.g. cust-456"
+                  placeholder="e.g. CUST-1042"
                 />
-                <p className="text-xs text-slate-bark mt-1">Required to link this account to an existing Custodian profile.</p>
               </div>
             )}
 
