@@ -51,7 +51,7 @@ export function RegisterTreeForm({ orgId }: { orgId: string }) {
         const options = [
           { value: "", label: "-- Select Custodian --" },
           ...data.map((c: any) => ({
-            value: c.uid,
+            value: c.custodianId || c.uid,
             label: `${c.displayName || 'Unknown'} (${c.phoneNumber || 'No Phone'})`
           }))
         ];

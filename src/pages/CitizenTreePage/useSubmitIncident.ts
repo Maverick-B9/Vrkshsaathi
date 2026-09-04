@@ -53,6 +53,7 @@ export function useSubmitIncident() {
         notes: payload.notes || null,
         status,
         reportedAt: new Date(reportedAt),
+        createdAt: new Date(reportedAt).toISOString(),
         reportedVia: payload.audioBlob ? "VOICE" : payload.photoBlob ? "PHOTO" : "TAP",
         hasEvidence: !!(payload.photoBlob || payload.audioBlob),
         languageCode: "en", // default; overridden by voice flow with actual lang
