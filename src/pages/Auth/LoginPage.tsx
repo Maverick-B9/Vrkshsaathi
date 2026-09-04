@@ -39,8 +39,9 @@ export default function LoginPage() {
     const finalPassword = formData.get("password") as string;
 
     try {
-      await signInWithEmailAndPassword(auth, finalEmail, finalPassword);
-      navigate(dashboardFor(claims?.role));
+      const userCred = await signInWithEmailAndPassword(auth, finalEmail, finalPassword);
+      const token = await userCred.user.getIdTokenResult();
+      navigate(dashboardFor(token.claims.role as string));
     } catch {
       setError("Incorrect email or password. Please try again.");
     } finally {
@@ -81,8 +82,9 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await confirm.confirm(otp);
-      navigate(dashboardFor(claims?.role));
+      const userCred = await confirm.confirm(otp);
+      const token = await userCred.user.getIdTokenResult();
+      navigate(dashboardFor(token.claims.role as string));
     } catch {
       setError("Incorrect OTP. Please try again.");
     } finally {
