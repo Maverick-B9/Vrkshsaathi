@@ -176,7 +176,7 @@ service cloud.firestore {
       allow update: if
         // Assigned custodian resolving
         (isCustodian()
-          && resource.data.assignedTo == myCustodianId())
+          && (resource.data.assignedTo == myCustodianId() || get(/databases/$(database)/documents/trees/$(resource.data.treeId)).data.custodianId == myCustodianId()))
         // Registrar handling their org's escalation
         || (isRegistrar()
           && resource.data.assignedTo == myOrgId())
