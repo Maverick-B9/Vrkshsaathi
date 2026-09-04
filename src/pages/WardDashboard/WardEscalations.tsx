@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { EmptyState, Button, AIHealthBadge } from "../../components/ui";
 
@@ -13,7 +13,9 @@ export function WardEscalations() {
         // Query incidents that have reached the final ESCALATED status
         const q = query(
           collection(db, "incidents"),
-          where("assignedTo", "==", "WARD_ADMIN")
+          where("status", "==", "ESCALATED"),
+          where("assignedTo", "==", "WARD_ADMIN"),
+          orderBy("createdAt", "asc")
         );
         
         const snap = await getDocs(q);
@@ -28,6 +30,21 @@ export function WardEscalations() {
     }
     fetchEscalations();
   }, []);
+
+  const resolveEscalation = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "incidents", id), {
+        status: "RESOLVED",
+        resolutionNotes: "Resolved via Ward Admin Intervention",
+        resolvedAt: new Date().toISOString()
+      });
+      setEscalations(prev => prev.filter(e => e.id !== id));
+      alert("Incident marked as resolved.");
+    } catch (err) {
+      console.error("Failed to resolve escalation", err);
+      alert("Failed to resolve. Check permissions.");
+    }
+  };
 
   if (loading) {
     return <div className="p-12 text-center text-slate-bark animate-pulse">Loading Escalation Queue...</div>;
@@ -70,10 +87,25 @@ export function WardEscalations() {
                   <p className="font-mono text-xs text-laterite-clay mt-2">
                     SLA Breached: {new Date(esc.createdAt).toLocaleDateString()}
                   </p>
+                  {esc.notes && (
+                    <p className="font-sans text-sm text-slate-bark mt-2 bg-field-parchment/50 p-2 rounded">
+                      "{esc.notes}"
+                    </p>
+                  )}
+                  {esc.photoUrl && (
+                    <div className="mt-3">
+                      <img src={esc.photoUrl} alt="Incident" className="w-full max-w-sm rounded-tag border border-field-parchment-dark object-cover max-h-48" />
+                    </div>
+                  )}
+                  {esc.voiceUrl && (
+                    <div className="mt-3">
+                      <audio controls src={esc.voiceUrl} className="w-full max-w-sm" />
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" size="sm">View Tree</Button>
-                  <Button variant="primary" size="sm">Intervene</Button>
+                  <Button variant="secondary" size="sm" onClick={() => window.location.href=`/tree/${esc.treeId}/history`}>View Tree</Button>
+                  <Button variant="primary" size="sm" onClick={() => resolveEscalation(esc.id)}>Intervene</Button>
                 </div>
               </div>
             ))}

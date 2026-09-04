@@ -60,10 +60,12 @@ export function useSubmitIncident() {
         escalationHistory: [],
       });
 
-      // 3. Upload photo to Storage (Trigger will now find the doc)
+      // 3. Upload photo to Storage and store photoUrl
       if (compressedPhoto) {
         const photoRef = ref(storage, `incidents/${docRef.id}/photo.jpg`);
         await uploadBytes(photoRef, compressedPhoto);
+        const photoUrl = await getDownloadURL(photoRef);
+        await updateDoc(doc(db, "incidents", docRef.id), { photoUrl });
       }
 
       // 4. Upload audio to Storage and store voiceUrl on the incident

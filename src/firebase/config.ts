@@ -17,6 +17,8 @@ import {
 import {
   getAuth,
   connectAuthEmulator,
+  setPersistence,
+  browserSessionPersistence,
 } from "firebase/auth";
 import {
   getStorage,
@@ -43,6 +45,7 @@ const app = getApps().length === 0
 
 export const db        = getFirestore(app);
 export const auth      = getAuth(app);
+setPersistence(auth, browserSessionPersistence).catch(console.error);
 export const storage   = getStorage(app);
 export const functions = getFunctions(app, "asia-south1"); // Mumbai region
 

@@ -103,7 +103,7 @@ export function SuperAdminTrees() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-3">
                         <a
-                          href={`/tree/${tree.id}`}
+                          href={`/tree/${tree.id}/history`}
                           className="text-moss-canopy hover:text-moss-canopy-dark font-medium transition-colors"
                         >
                           View Details

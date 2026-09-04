@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { collection, query, where, getDocs, orderBy, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { useAuth } from "../../contexts/AuthContext";
 import { EmptyState, Button, CountdownTimer, AIHealthBadge } from "../../components/ui";
@@ -15,11 +16,11 @@ export function EscalationInbox() {
         return;
       }
       try {
-        const { collection, query, where, getDocs } = await import("firebase/firestore");
         const q = query(
           collection(db, "incidents"),
-          where("assignedTo", "==", "REGISTRAR"),
-          where("orgId", "==", claims.orgId)
+          where("status", "==", "ESCALATED"),
+          where("assignedTo", "==", claims.orgId),
+          orderBy("createdAt", "asc")
         );
         const snap = await getDocs(q);
         const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -33,9 +34,19 @@ export function EscalationInbox() {
     fetchEscalations();
   }, [claims]);
 
-  const resolveEscalation = (id: string) => {
-    // In real app: Update the escalation doc status to RESOLVED
-    setEscalations(prev => prev.filter(e => e.id !== id));
+  const resolveEscalation = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "incidents", id), {
+        status: "RESOLVED",
+        resolutionNotes: "Resolved via Registrar Intervention",
+        resolvedAt: new Date().toISOString()
+      });
+      setEscalations(prev => prev.filter(e => e.id !== id));
+      alert("Incident marked as resolved.");
+    } catch (err) {
+      console.error("Failed to resolve escalation", err);
+      alert("Failed to resolve. Check permissions.");
+    }
   };
 
   if (loading) {
@@ -75,15 +86,30 @@ export function EscalationInbox() {
                     )}
                   </div>
                   <p className="font-mono text-xs text-laterite-clay mt-2">
-                  Breached at: {new Date(esc.breachedAt).toLocaleString()}
-                </p>
+                    Breached at: {new Date(esc.breachedAt).toLocaleString()}
+                  </p>
+                  {esc.notes && (
+                    <p className="font-sans text-sm text-slate-bark mt-2 bg-field-parchment/50 p-2 rounded">
+                      "{esc.notes}"
+                    </p>
+                  )}
+                  {esc.photoUrl && (
+                    <div className="mt-3">
+                      <img src={esc.photoUrl} alt="Incident" className="w-full max-w-sm rounded-tag border border-field-parchment-dark object-cover max-h-48" />
+                    </div>
+                  )}
+                  {esc.voiceUrl && (
+                    <div className="mt-3">
+                      <audio controls src={esc.voiceUrl} className="w-full max-w-sm" />
+                    </div>
+                  )}
               </div>
               
               <div className="flex gap-2">
                 <Button variant="secondary" onClick={() => resolveEscalation(esc.id)}>
                   Mark Resolved
                 </Button>
-                <Button onClick={() => window.location.href = `/tree/${esc.treeId}`}>
+                <Button onClick={() => window.location.href = `/tree/${esc.treeId}/history`}>
                   View Tree
                 </Button>
               </div>

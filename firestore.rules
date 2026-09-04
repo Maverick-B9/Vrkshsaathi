@@ -222,5 +222,14 @@ service cloud.firestore {
       allow write: if false; // Cloud Function (admin SDK) only
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // /alerts — for global notification system
+    // ─────────────────────────────────────────────────────────────
+    match /alerts/{alertId} {
+      allow read: if isSignedIn();
+      allow create: if isSuperAdmin();
+      allow update, delete: if isSuperAdmin();
+    }
+
   }
 }

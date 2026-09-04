@@ -16,6 +16,8 @@ const WardDashboard      = lazy(() => import("@/pages/WardDashboard/WardDashboar
 const SuperAdminDashboard= lazy(() => import("@/pages/SuperAdminDashboard/SuperAdminDashboard"));
 const LandingScanner     = lazy(() => import("@/pages/LandingScanner"));
 
+import { GlobalAlerts } from "@/components/GlobalAlerts";
+
 function PageLoader() {
   return (
     <div className="min-h-screen bg-field-parchment flex items-center justify-center">
@@ -126,6 +128,7 @@ export default function App() {
 
   return (
     <Suspense fallback={<PageLoader />}>
+      <GlobalAlerts />
       <Routes>
         {/* ── Public ── */}
         <Route path="/tree/:treeId"         element={<CitizenTreePage />} />

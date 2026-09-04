@@ -128,6 +128,16 @@ export function IncidentQueue() {
                       "{inc.notes}"
                     </p>
                   )}
+                  {inc.photoUrl && (
+                    <div className="mt-3">
+                      <img src={inc.photoUrl} alt="Incident" className="w-full max-w-sm rounded-tag border border-field-parchment-dark object-cover max-h-48" />
+                    </div>
+                  )}
+                  {inc.voiceUrl && (
+                    <div className="mt-3">
+                      <audio controls src={inc.voiceUrl} className="w-full max-w-sm" />
+                    </div>
+                  )}
                 </div>
                 {/* True-Source Countdown Timer */}
                 <div className="text-right">
@@ -141,7 +151,7 @@ export function IncidentQueue() {
               </div>
 
               <div className="flex gap-3 justify-end pt-4 border-t border-field-parchment-dark">
-                <Button variant="secondary" onClick={() => window.location.href=`/tree/${inc.treeId}`}>
+                <Button variant="secondary" onClick={() => window.location.href=`/tree/${inc.treeId}/history`}>
                   View Tree
                 </Button>
                 <Button onClick={() => setResolvingId(inc.id)}>

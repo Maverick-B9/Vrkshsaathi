@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, query, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, getDocs, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase/config";
 import { EmptyState, Button, AIHealthBadge } from "../../components/ui";
 
@@ -29,20 +29,26 @@ export function SuperAdminReports() {
     fetchReports();
   }, []);
 
-  const handleNotify = (esc: any) => {
-    const message = `URGENT INCIDENT ALERT
-Tree ID: ${esc.treeId}
+  const handleNotify = async (esc: any) => {
+    try {
+      await addDoc(collection(db, "alerts"), {
+        title: "URGENT INCIDENT ALERT",
+        message: `Tree ID: ${esc.treeId}
 Category: ${esc.category?.replace("_", " ")}
 Status: ${esc.status}
-Severity: ${esc.severity}
 Assigned To: ${esc.assignedTo}
 Organization: ${esc.orgName || "Unknown"}
 Custodian: ${esc.custodianName || "Unknown"}
 
-Please take immediate action to resolve this issue.`;
-
-    navigator.clipboard.writeText(message);
-    alert("Alert message copied to clipboard! You can now paste this into an email or messaging app to notify the Ward Admin / Custodian.");
+Please take immediate action to resolve this issue.`,
+        treeId: esc.treeId,
+        createdAt: new Date().toISOString()
+      });
+      alert("Alert broadcasted successfully to all administrators!");
+    } catch (err) {
+      console.error("Failed to broadcast alert", err);
+      alert("Failed to send alert. Check permissions.");
+    }
   };
 
   if (loading) {
@@ -91,9 +97,24 @@ Please take immediate action to resolve this issue.`;
                   <p className="font-mono text-xs text-slate-bark mt-2">
                     Reported: {new Date(esc.createdAt).toLocaleString()}
                   </p>
+                  {esc.notes && (
+                    <p className="font-sans text-sm text-slate-bark mt-2 bg-field-parchment/50 p-2 rounded">
+                      "{esc.notes}"
+                    </p>
+                  )}
+                  {esc.photoUrl && (
+                    <div className="mt-3">
+                      <img src={esc.photoUrl} alt="Incident" className="w-full max-w-sm rounded-tag border border-field-parchment-dark object-cover max-h-48" />
+                    </div>
+                  )}
+                  {esc.voiceUrl && (
+                    <div className="mt-3">
+                      <audio controls src={esc.voiceUrl} className="w-full max-w-sm" />
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => handleNotify(esc)}>Copy Alert</Button>
+                  <Button variant="secondary" size="sm" onClick={() => handleNotify(esc)}>Send Alert</Button>
                 </div>
               </div>
             ))}

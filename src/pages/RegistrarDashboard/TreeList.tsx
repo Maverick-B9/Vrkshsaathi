@@ -139,7 +139,7 @@ export function TreeList() {
                     <td className="p-4 text-right">
                       <div className="flex justify-end gap-3 items-center">
                         <a
-                          href={`/tree/${tree.id}`}
+                          href={`/tree/${tree.id}/history`}
                           className="text-moss-canopy hover:text-moss-canopy-dark text-sm font-sans font-medium transition-colors"
                         >
                           View Details

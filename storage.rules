@@ -23,7 +23,6 @@ service firebase.storage {
       allow read:  if request.auth != null;
       allow write: if request.auth != null 
                    && request.auth.token.role == 'custodian'
-                   && firestore.get(/databases/(default)/documents/trees/$(firestore.get(/databases/(default)/documents/incidents/$(incidentId)).data.treeId)).data.custodianId == request.auth.token.custodianId
                    && request.resource.size < 10 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
